@@ -7,10 +7,25 @@ const FONT_WIDTH: c_int = 1;
 const FONT_HEIGHT: c_int = 2;
 
 pub fn create_surface_from_file(file_path: []const u8) !sdl.SDL_Surface {
-    var x:u32 = 0;
-    if sdl.SDL_BYTEORDER == sdl.SLD_BIG_ENDIAN {
+    var rmask: u32 = 0;
+    var gmask: u32 = 0;
+    var bmask: u32 = 0;
+    var amask: u32 = 0;
+    if (sdl.SDL_BYTEORDER == sdl.SLD_BIG_ENDIAN) {
+        rmask = 0x000000FF;
+        gmask = 0x0000FF00;
+        bmask = 0x00FF0000;
+        amask = 0xFF000000;
+    } else {
+        rmask = 0xFF000000;
+        gmask = 0x00FF0000;
+        bmask = 0x0000FF00;
+        amask = 0x000000FF;
     }
-//SDL_CreateRGBSurfaceFrom(pixels: ?*anyopaque, width: c_int, height: c_int, depth: c_int, pitch: c_int, Rmask: Uint32, Gmask: Uint32, Bmask: Uint32, Amask: Uint32) [*c]SDL_Surface;
+    //return SDL_CreateRGBSurfaceFrom(pixels: ?*anyopaque,
+    //                         width: c_int, height: c_int, depth: c_int, pitch: c_int,
+    //                         rmask, gmask, bmask, amask);
+    return error.A;
 
 }
 
