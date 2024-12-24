@@ -7,6 +7,10 @@ const FONT_WIDTH: c_int = 1;
 const FONT_HEIGHT: c_int = 2;
 
 pub fn create_surface_from_file(file_path: []const u8) !sdl.SDL_Surface {
+    if (file_path) {
+    
+    }
+
     var rmask: u32 = 0;
     var gmask: u32 = 0;
     var bmask: u32 = 0;
