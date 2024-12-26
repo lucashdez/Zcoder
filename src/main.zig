@@ -8,6 +8,7 @@ const FONT_HEIGHT: c_int = 2;
 
 pub fn create_surface_from_file(file_path: []const u8) !sdl.SDL_Surface {
     if (file_path) {
+        std.io.GenericReader().readUntilDelimiterOrEof();
     
     }
 
@@ -26,6 +27,7 @@ pub fn create_surface_from_file(file_path: []const u8) !sdl.SDL_Surface {
         bmask = 0x0000FF00;
         amask = 0x000000FF;
     }
+
     //return SDL_CreateRGBSurfaceFrom(pixels: ?*anyopaque,
     //                         width: c_int, height: c_int, depth: c_int, pitch: c_int,
     //                         rmask, gmask, bmask, amask);
