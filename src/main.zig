@@ -48,10 +48,6 @@ pub fn main() !void {
 
     window = sdl.SDL_CreateWindow("my window", 100, 100, 640, 480, sdl.SDL_WINDOW_SHOWN | sdl.SDL_WINDOW_RESIZABLE).?;
     renderer = sdl.SDL_CreateRenderer(window, -1, sdl.SDL_RENDERER_ACCELERATED).?;
-    const texture: *sdl.SDL_Texture =
-        sdl.SDL_CreateTexture(renderer, sdl.SDL_PIXELFORMAT_INDEX8, sdl.SDL_TEXTUREACCESS_STATIC, FONT_WIDTH, FONT_HEIGHT).?;
-
-    _ = texture;
     var quit: bool = false;
     while (!quit) {
         var event: sdl.SDL_Event = undefined;
