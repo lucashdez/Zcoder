@@ -28,6 +28,7 @@ pub fn build(b: *std.Build) void {
     // location when the user invokes the "install" step (the default step when
     // running `zig build`).
     b.installArtifact(lib);
+    const zigimg_dependency = b.dependency("zigimg", .{ .target = target, .optimize = optimize });
 
     const exe = b.addExecutable(.{
         .name = "z-coder",
@@ -35,6 +36,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+    exe.root_module.addImport("zigimg", zigimg_dependency.module("zigimg"));
 
     exe.linkLibC();
     exe.linkSystemLibrary("SDL2");
