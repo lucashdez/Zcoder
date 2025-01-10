@@ -115,6 +115,15 @@ pub fn render_text(renderer: *sdl.SDL_Renderer, font: *sdl.SDL_Texture, text: []
     }
 }
 
+// TODO: Render cursor
+pub fn render_cursor(renderer: *sdl.SDL_Renderer, pos: la.Vec2f, color: u32, scale: f32) void {
+
+
+}
+// TODO: Move cursor
+// TODO: Buffer capacity
+// TODO: Load/save buffers
+
 pub fn create_surface_from_file(arena: *std.heap.ArenaAllocator, file_path: []const u8) !*sdl.SDL_Surface {
     const allocator = arena.allocator();
     if (!std.mem.eql(u8, file_path, "")) {
@@ -198,6 +207,7 @@ pub fn main() !void {
         _ = sdl.SDL_RenderClear(renderer);
 
         render_text(renderer, font_texture, &buffer, la.vec2f(0, 0), 0x23FF0000, 5);
+        render_cursor(renderer, la.vec2f(cursor, 0), 0x0000FF000, 5);
         sdl.SDL_RenderPresent(renderer);
     }
     sdl.SDL_Quit();
