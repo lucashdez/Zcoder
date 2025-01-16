@@ -16,8 +16,8 @@ const print = std.debug.print;
 
 
 const Buffer = struct {
-    cursor_pos: usize,
-    mark_pos: usize,
+    cursor_pos: [2]usize,
+    mark_pos: [2]usize,
     buffer: *std.ArrayList(u8),
     file_name: *const u8,
 };
@@ -137,31 +137,23 @@ pub fn render_cursor(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, sc
     const a: u8 = @intCast((color >> 24) & 0xff);
     _ = sdl.SDL_SetRenderDrawColor(renderer, r, g, b, a);
     
-    var line: i32 = 0;
-    var last_i: i32 = 0;
 
-    for (buffer.buffer.items, 0..buffer.cursor_pos) |c, i| {
-        if (c == '\n') {
-            line += 1;
-            last_i = @intCast(i);
-        }
-    }
-    last_i += 1;
-    const x: i32 = @as(i32, @intCast(buffer.cursor_pos)) - last_i;
+    const x: i32 = @intCast(buffer.cursor_pos[0]);
+    const y: i32 = @intCast(buffer.cursor_pos[1]);
 
     const char_width: i32 = @intFromFloat(FONT_CHAR_WIDTH * scale);
     const char_height: i32 = @intFromFloat(FONT_CHAR_HEIGHT * scale);
     const fixed_g: i32 = 4;
-    if (buffer.cursor_pos >= buffer.mark_pos) {
+    if (buffer.cursor_pos[0] >= buffer.mark_pos[0]) {
         const bottom_side: sdl.SDL_Rect = .{
             .x = x * char_width - @divTrunc(char_width, 2),
-            .y = line * char_height + char_height - fixed_g,
+            .y = y * char_height + char_height - fixed_g,
             .w = @divTrunc(char_width, 2),
             .h = fixed_g,
         };
         const right_side: sdl.SDL_Rect = .{
             .x = x * char_width,
-            .y = line * char_height,
+            .y = y * char_height,
             .w = fixed_g,
             .h = char_height,
         };
@@ -170,13 +162,13 @@ pub fn render_cursor(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, sc
     } else {
         const left_side: sdl.SDL_Rect = .{
             .x = x * char_width,
-            .y = line * char_height,
+            .y = y * char_height,
             .w = fixed_g,
             .h = char_height,
         };
         const top_side: sdl.SDL_Rect = .{
             .x = x * char_width,
-            .y = line * char_height,
+            .y = y * char_height,
             .w = @divTrunc(char_width, 2),
             .h = fixed_g,
         };
@@ -194,10 +186,10 @@ pub fn render_mark(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, scal
 
     const char_width: i32 = @intFromFloat(FONT_CHAR_WIDTH * scale);
     const char_height: i32 = @intFromFloat(FONT_CHAR_HEIGHT * scale);
-    const x: i32 = @intCast(buffer.mark_pos);
+    const x: i32 = @intCast(buffer.mark_pos[0]);
     const fixed_g: i32 = 4;
     const line = 0;
-    if (buffer.mark_pos > buffer.cursor_pos) {
+    if (buffer.mark_pos[0] > buffer.cursor_pos[0]) {
         const bottom_side: sdl.SDL_Rect = .{
             .x = x * char_width - @divTrunc(char_width, 2),
             .y = line * char_height + char_height - fixed_g,
@@ -283,8 +275,8 @@ pub fn main() !void {
     surface = try create_surface_from_file(&arena, "font_white.png");
     const font_texture: *sdl.SDL_Texture = sdl.SDL_CreateTextureFromSurface(renderer, surface).?;
     var arr = std.ArrayList(u8).init(allocator);
-    var buffer: Buffer = Buffer { .cursor_pos = 0, 
-        .mark_pos = 2, 
+    var buffer: Buffer = Buffer { .cursor_pos = .{0, 0}, 
+        .mark_pos = .{2, 0}, 
         .buffer = &arr, 
         .file_name = undefined 
     };
@@ -299,32 +291,33 @@ pub fn main() !void {
                 sdl.SDL_KEYDOWN => {
                     switch (event.key.keysym.sym) {
                         sdl.SDLK_BACKSPACE => {
-                            if (buffer.cursor_pos > 0) {
-                                buffer.cursor_pos -= 1;
-                                _ = buffer.buffer.orderedRemove(buffer.cursor_pos);
+                            if (buffer.cursor_pos[0] > 0) {
+                                buffer.cursor_pos[0] -= 1;
+                                _ = buffer.buffer.orderedRemove(buffer.cursor_pos[0]);
                             }
                         },
                         sdl.SDLK_LEFT => {
-                            if (buffer.cursor_pos > 0) {
-                                buffer.cursor_pos -= 1;
+                            if (buffer.cursor_pos[0] > 0) {
+                                buffer.cursor_pos[0] -= 1;
                             }
                         },
                         sdl.SDLK_RIGHT => {
-                            if (buffer.cursor_pos < buffer.buffer.items.len) {
-                                buffer.cursor_pos += 1;
+                            if (buffer.cursor_pos[0] < buffer.buffer.items.len) {
+                                buffer.cursor_pos[0] += 1;
                             }
                         },
                         sdl.SDLK_RETURN => {
-                            try buffer.buffer.insert(buffer.cursor_pos, '\n');
-                            buffer.cursor_pos += 1;
+                            try buffer.buffer.insert(buffer.cursor_pos[0], '\n');
+                            buffer.cursor_pos[0] = 0;
+                            buffer.cursor_pos[1] = buffer.cursor_pos[1] + 1;
                         },
                         else => {},
                     }
                 },
                 sdl.SDL_TEXTINPUT => {
                     const char = event.text.text;
-                    try buffer.buffer.insert(buffer.cursor_pos,char[0]);
-                    buffer.cursor_pos += 1;
+                    try buffer.buffer.insert(buffer.cursor_pos[0],char[0]);
+                    buffer.cursor_pos[0] += 1;
                     print("TextRecieved", .{});
                 },
                 else => {},
