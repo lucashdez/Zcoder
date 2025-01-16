@@ -14,10 +14,11 @@ const FONT_CHAR_HEIGHT = FONT_HEIGHT / FONT_ROWS;
 
 const print = std.debug.print;
 
+
 const Buffer = struct {
-    cursor_pos: la.Vec2f,
-    mark_pos: la.Vec2f,
-    buffer: [15]u8,
+    cursor_pos: usize,
+    mark_pos: usize,
+    buffer: *std.ArrayList(u8),
     file_name: *const u8,
 };
 
@@ -119,8 +120,13 @@ pub fn render_text(renderer: *sdl.SDL_Renderer, font: *sdl.SDL_Texture, text: []
     //const len = text.len;
     var pen = pos;
     for (text) |c| {
-        render_char(renderer, font, c, pen, color, scale);
-        pen = la.vec2f_add(pen, la.vec2f(FONT_CHAR_WIDTH * scale, 0));
+        if (c == '\n') {
+            pen = la.vec2f(0, pen.y);
+            pen = la.vec2f_add(pen, la.vec2f(0, FONT_CHAR_HEIGHT*scale));
+        } else {
+            render_char(renderer, font, c, pen, color, scale);
+            pen = la.vec2f_add(pen, la.vec2f(FONT_CHAR_WIDTH * scale, 0));
+        }
     }
 }
 
@@ -130,22 +136,32 @@ pub fn render_cursor(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, sc
     const b: u8 = @intCast((color >> 0) & 0xff);
     const a: u8 = @intCast((color >> 24) & 0xff);
     _ = sdl.SDL_SetRenderDrawColor(renderer, r, g, b, a);
+    
+    var line: i32 = 0;
+    var last_i: i32 = 0;
+
+    for (buffer.buffer.items, 0..buffer.cursor_pos) |c, i| {
+        if (c == '\n') {
+            line += 1;
+            last_i = @intCast(i);
+        }
+    }
+    last_i += 1;
+    const x: i32 = @as(i32, @intCast(buffer.cursor_pos)) - last_i;
 
     const char_width: i32 = @intFromFloat(FONT_CHAR_WIDTH * scale);
     const char_height: i32 = @intFromFloat(FONT_CHAR_HEIGHT * scale);
-    const x: i32 = @intFromFloat(buffer.cursor_pos.x);
-    const y: i32 = @intFromFloat(buffer.cursor_pos.y);
     const fixed_g: i32 = 4;
-    if (buffer.cursor_pos.x >= buffer.mark_pos.x) {
+    if (buffer.cursor_pos >= buffer.mark_pos) {
         const bottom_side: sdl.SDL_Rect = .{
             .x = x * char_width - @divTrunc(char_width, 2),
-            .y = y * char_height + char_height - fixed_g,
+            .y = line * char_height + char_height - fixed_g,
             .w = @divTrunc(char_width, 2),
             .h = fixed_g,
         };
         const right_side: sdl.SDL_Rect = .{
             .x = x * char_width,
-            .y = y * char_height,
+            .y = line * char_height,
             .w = fixed_g,
             .h = char_height,
         };
@@ -154,13 +170,13 @@ pub fn render_cursor(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, sc
     } else {
         const left_side: sdl.SDL_Rect = .{
             .x = x * char_width,
-            .y = y * char_height,
+            .y = line * char_height,
             .w = fixed_g,
             .h = char_height,
         };
         const top_side: sdl.SDL_Rect = .{
             .x = x * char_width,
-            .y = y * char_height,
+            .y = line * char_height,
             .w = @divTrunc(char_width, 2),
             .h = fixed_g,
         };
@@ -178,19 +194,19 @@ pub fn render_mark(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, scal
 
     const char_width: i32 = @intFromFloat(FONT_CHAR_WIDTH * scale);
     const char_height: i32 = @intFromFloat(FONT_CHAR_HEIGHT * scale);
-    const x: i32 = @intFromFloat(buffer.mark_pos.x);
-    const y: i32 = @intFromFloat(buffer.mark_pos.y);
+    const x: i32 = @intCast(buffer.mark_pos);
     const fixed_g: i32 = 4;
-    if (buffer.mark_pos.x > buffer.cursor_pos.x) {
+    const line = 0;
+    if (buffer.mark_pos > buffer.cursor_pos) {
         const bottom_side: sdl.SDL_Rect = .{
             .x = x * char_width - @divTrunc(char_width, 2),
-            .y = y * char_height + char_height - fixed_g,
+            .y = line * char_height + char_height - fixed_g,
             .w = @divTrunc(char_width, 2),
             .h = fixed_g,
         };
         const right_side: sdl.SDL_Rect = .{
             .x = x * char_width,
-            .y = y * char_height,
+            .y = line * char_height,
             .w = fixed_g,
             .h = char_height,
         };
@@ -199,13 +215,13 @@ pub fn render_mark(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, scal
     } else {
         const left_side: sdl.SDL_Rect = .{
             .x = x * char_width,
-            .y = y * char_height,
+            .y = line * char_height,
             .w = fixed_g,
             .h = char_height,
         };
         const top_side: sdl.SDL_Rect = .{
             .x = x * char_width,
-            .y = y * char_height,
+            .y = line * char_height,
             .w = @divTrunc(char_width, 2),
             .h = fixed_g,
         };
@@ -249,6 +265,7 @@ pub fn create_surface_from_file(arena: *std.heap.ArenaAllocator, file_path: []co
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    const allocator = std.heap.page_allocator;
     defer arena.deinit();
 
     if (sdl.SDL_Init(sdl.SDL_INIT_VIDEO) < 0) {
@@ -265,8 +282,12 @@ pub fn main() !void {
     renderer = sdl.SDL_CreateRenderer(window, -1, sdl.SDL_RENDERER_ACCELERATED).?;
     surface = try create_surface_from_file(&arena, "font_white.png");
     const font_texture: *sdl.SDL_Texture = sdl.SDL_CreateTextureFromSurface(renderer, surface).?;
-    const b: [15]u8 = undefined;
-    var buffer: Buffer = Buffer{ .cursor_pos = la.vec2f(0, 0), .mark_pos = la.vec2f(2, 0), .buffer = b, .file_name = undefined };
+    var arr = std.ArrayList(u8).init(allocator);
+    var buffer: Buffer = Buffer { .cursor_pos = 0, 
+        .mark_pos = 2, 
+        .buffer = &arr, 
+        .file_name = undefined 
+    };
     var quit: bool = false;
     while (!quit) {
         var event: sdl.SDL_Event = undefined;
@@ -278,28 +299,32 @@ pub fn main() !void {
                 sdl.SDL_KEYDOWN => {
                     switch (event.key.keysym.sym) {
                         sdl.SDLK_BACKSPACE => {
-                            if (buffer.cursor_pos.x > 0) {
-                                buffer.cursor_pos.x -= 1;
-                                buffer.buffer[@intFromFloat(buffer.cursor_pos.x)] = ' ';
+                            if (buffer.cursor_pos > 0) {
+                                buffer.cursor_pos -= 1;
+                                _ = buffer.buffer.orderedRemove(buffer.cursor_pos);
                             }
                         },
                         sdl.SDLK_LEFT => {
-                            if (buffer.cursor_pos.x > 0) {
-                                buffer.cursor_pos.x -= 1;
+                            if (buffer.cursor_pos > 0) {
+                                buffer.cursor_pos -= 1;
                             }
                         },
                         sdl.SDLK_RIGHT => {
-                            if (buffer.cursor_pos.x < buffer.buffer.len) {
-                                buffer.cursor_pos.x += 1;
+                            if (buffer.cursor_pos < buffer.buffer.items.len) {
+                                buffer.cursor_pos += 1;
                             }
+                        },
+                        sdl.SDLK_RETURN => {
+                            try buffer.buffer.insert(buffer.cursor_pos, '\n');
+                            buffer.cursor_pos += 1;
                         },
                         else => {},
                     }
                 },
                 sdl.SDL_TEXTINPUT => {
                     const char = event.text.text;
-                    buffer.buffer[@intFromFloat(buffer.cursor_pos.x)] = char[0];
-                    buffer.cursor_pos.x += 1;
+                    try buffer.buffer.insert(buffer.cursor_pos,char[0]);
+                    buffer.cursor_pos += 1;
                     print("TextRecieved", .{});
                 },
                 else => {},
@@ -308,7 +333,7 @@ pub fn main() !void {
         _ = sdl.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
         _ = sdl.SDL_RenderClear(renderer);
 
-        render_text(renderer, font_texture, &buffer.buffer, la.vec2f(0, 0), 0x23FF0000, 5);
+        render_text(renderer, font_texture, buffer.buffer.items, la.vec2f(0, 0), 0x23FF0000, 5);
         render_cursor(renderer, buffer, 0x0000FF000, 5);
         render_mark(renderer, buffer, 0x00009900, 5);
         sdl.SDL_RenderPresent(renderer);
