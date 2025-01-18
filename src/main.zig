@@ -14,13 +14,68 @@ const FONT_CHAR_HEIGHT = FONT_HEIGHT / FONT_ROWS;
 
 const print = std.debug.print;
 
+const Arena = struct {
+    base: *const std.mem.Allocator,
+    mem: [*]const u8,
+    pos: usize,
+    cap: usize,
+    pub fn init(allocator: *const std.mem.Allocator, size: usize) Arena {
+        return Arena{
+            .base = allocator,
+            .mem = allocator.rawAlloc(size, @alignOf(u8), 0).?,
+            .pos = 0,
+            .cap = size,
+        };
+    }
+};
+
+const BufferPos2D = struct {
+    x: i32,
+    y: i32,
+
+    pub fn init(x: i32, y: i32) BufferPos2D {
+        return BufferPos2D{ .x = x, .y = y };
+    }
+
+    pub fn cmp(self: *const BufferPos2D, b: *const BufferPos2D) i32 {
+        if (self.y == b.y) {
+            return if (self.x >= b.x) 1 else -1;
+        } else {
+            return if (self.y >= b.y) 1 else -1;
+        }
+    }
+};
 
 const Buffer = struct {
-    cursor_pos: [2]usize,
-    mark_pos: [2]usize,
+    arena: Arena,
+    cursor_pos: BufferPos2D,
+    global_cursor_pos: usize,
+    mark_pos: BufferPos2D,
     buffer: *std.ArrayList(u8),
     file_name: *const u8,
 };
+
+pub fn line_length(text: *const std.ArrayList(u8), line: usize) usize {
+    var len: usize = 0;
+    if (line == 0) {
+        while (text.items[len] != '\n') {
+            len += 1;
+        }
+    } else {
+        var walker: usize = 0;
+        var found_b_n: u32 = 0;
+        while (true) {
+            if (text.items[walker] == '\n') found_b_n += 1;
+            walker += 1;
+            if (found_b_n == line) break;
+        }
+        while (walker < text.items.len and text.items[walker] != '\n') {
+            len += 1;
+            walker += 1;
+        }
+    }
+    return len;
+}
 
 const PixelMask = struct {
     red: u32,
@@ -122,7 +177,7 @@ pub fn render_text(renderer: *sdl.SDL_Renderer, font: *sdl.SDL_Texture, text: []
     for (text) |c| {
         if (c == '\n') {
             pen = la.vec2f(0, pen.y);
-            pen = la.vec2f_add(pen, la.vec2f(0, FONT_CHAR_HEIGHT*scale));
+            pen = la.vec2f_add(pen, la.vec2f(0, FONT_CHAR_HEIGHT * scale));
         } else {
             render_char(renderer, font, c, pen, color, scale);
             pen = la.vec2f_add(pen, la.vec2f(FONT_CHAR_WIDTH * scale, 0));
@@ -136,15 +191,14 @@ pub fn render_cursor(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, sc
     const b: u8 = @intCast((color >> 0) & 0xff);
     const a: u8 = @intCast((color >> 24) & 0xff);
     _ = sdl.SDL_SetRenderDrawColor(renderer, r, g, b, a);
-    
 
-    const x: i32 = @intCast(buffer.cursor_pos[0]);
-    const y: i32 = @intCast(buffer.cursor_pos[1]);
+    const x: i32 = buffer.cursor_pos.x;
+    const y: i32 = buffer.cursor_pos.y;
 
     const char_width: i32 = @intFromFloat(FONT_CHAR_WIDTH * scale);
     const char_height: i32 = @intFromFloat(FONT_CHAR_HEIGHT * scale);
     const fixed_g: i32 = 4;
-    if (buffer.cursor_pos[0] >= buffer.mark_pos[0]) {
+    if (buffer.cursor_pos.cmp(&buffer.mark_pos) == 1) {
         const bottom_side: sdl.SDL_Rect = .{
             .x = x * char_width - @divTrunc(char_width, 2),
             .y = y * char_height + char_height - fixed_g,
@@ -186,19 +240,19 @@ pub fn render_mark(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, scal
 
     const char_width: i32 = @intFromFloat(FONT_CHAR_WIDTH * scale);
     const char_height: i32 = @intFromFloat(FONT_CHAR_HEIGHT * scale);
-    const x: i32 = @intCast(buffer.mark_pos[0]);
     const fixed_g: i32 = 4;
-    const line = 0;
-    if (buffer.mark_pos[0] > buffer.cursor_pos[0]) {
+    const x = buffer.mark_pos.x;
+    const y = buffer.mark_pos.y;
+    if (buffer.cursor_pos.cmp(&buffer.mark_pos) == -1) {
         const bottom_side: sdl.SDL_Rect = .{
             .x = x * char_width - @divTrunc(char_width, 2),
-            .y = line * char_height + char_height - fixed_g,
+            .y = y * char_height + char_height - fixed_g,
             .w = @divTrunc(char_width, 2),
             .h = fixed_g,
         };
         const right_side: sdl.SDL_Rect = .{
             .x = x * char_width,
-            .y = line * char_height,
+            .y = y * char_height,
             .w = fixed_g,
             .h = char_height,
         };
@@ -207,13 +261,13 @@ pub fn render_mark(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, scal
     } else {
         const left_side: sdl.SDL_Rect = .{
             .x = x * char_width,
-            .y = line * char_height,
+            .y = y * char_height,
             .w = fixed_g,
             .h = char_height,
         };
         const top_side: sdl.SDL_Rect = .{
             .x = x * char_width,
-            .y = line * char_height,
+            .y = y * char_height,
             .w = @divTrunc(char_width, 2),
             .h = fixed_g,
         };
@@ -275,11 +329,7 @@ pub fn main() !void {
     surface = try create_surface_from_file(&arena, "font_white.png");
     const font_texture: *sdl.SDL_Texture = sdl.SDL_CreateTextureFromSurface(renderer, surface).?;
     var arr = std.ArrayList(u8).init(allocator);
-    var buffer: Buffer = Buffer { .cursor_pos = .{0, 0}, 
-        .mark_pos = .{2, 0}, 
-        .buffer = &arr, 
-        .file_name = undefined 
-    };
+    var buffer: Buffer = Buffer{ .arena = Arena.init(&allocator, 1 << 10), .cursor_pos = BufferPos2D.init(0, 0), .global_cursor_pos = 0, .mark_pos = BufferPos2D.init(2, 0), .buffer = &arr, .file_name = undefined };
     var quit: bool = false;
     while (!quit) {
         var event: sdl.SDL_Event = undefined;
@@ -291,42 +341,62 @@ pub fn main() !void {
                 sdl.SDL_KEYDOWN => {
                     switch (event.key.keysym.sym) {
                         sdl.SDLK_BACKSPACE => {
-                            if (buffer.cursor_pos[0] > 0) {
-                                buffer.cursor_pos[0] -= 1;
-                                _ = buffer.buffer.orderedRemove(buffer.cursor_pos[0]);
+                            if (buffer.cursor_pos.x > 0) {
+                                buffer.cursor_pos.x -= 1;
+                                buffer.global_cursor_pos -= 1;
+                                _ = buffer.buffer.orderedRemove(buffer.global_cursor_pos);
                             }
                         },
+                        sdl.SDLK_UP => {
+                            if (buffer.cursor_pos.y > 0) {
+                                buffer.cursor_pos.y -= 1;
+                                buffer.global_cursor_pos -= @as(usize, @intCast(buffer.cursor_pos.x));
+                                buffer.global_cursor_pos -= 1;
+                                const len = line_length(buffer.buffer, @intCast(buffer.cursor_pos.y));
+                                if (buffer.cursor_pos.x > len) {
+                                    buffer.cursor_pos.x = @intCast(len);
+                                } else {
+                                    buffer.cursor_pos.x = buffer.cursor_pos.x;
+                                }
+                                buffer.global_cursor_pos -= len;
+                                buffer.global_cursor_pos += @intCast(buffer.cursor_pos.x);
+                            }
+                        },
+                        sdl.SDLK_DOWN => {},
                         sdl.SDLK_LEFT => {
-                            if (buffer.cursor_pos[0] > 0) {
-                                buffer.cursor_pos[0] -= 1;
+                            if (buffer.cursor_pos.x > 0) {
+                                buffer.cursor_pos.x -= 1;
+                                buffer.global_cursor_pos -= 1;
                             }
                         },
                         sdl.SDLK_RIGHT => {
-                            if (buffer.cursor_pos[0] < buffer.buffer.items.len) {
-                                buffer.cursor_pos[0] += 1;
+                            if (buffer.global_cursor_pos < buffer.buffer.items.len and buffer.buffer.items[buffer.global_cursor_pos] != '\n') {
+                                buffer.cursor_pos.x += 1;
+                                buffer.global_cursor_pos += 1;
                             }
                         },
                         sdl.SDLK_RETURN => {
-                            try buffer.buffer.insert(buffer.cursor_pos[0], '\n');
-                            buffer.cursor_pos[0] = 0;
-                            buffer.cursor_pos[1] = buffer.cursor_pos[1] + 1;
+                            try buffer.buffer.insert(buffer.global_cursor_pos, '\n');
+                            buffer.cursor_pos.x = 0;
+                            buffer.cursor_pos.y = buffer.cursor_pos.y + 1;
+                            buffer.global_cursor_pos += 1;
                         },
                         else => {},
                     }
                 },
                 sdl.SDL_TEXTINPUT => {
                     const char = event.text.text;
-                    try buffer.buffer.insert(buffer.cursor_pos[0],char[0]);
-                    buffer.cursor_pos[0] += 1;
-                    print("TextRecieved", .{});
+                    try buffer.buffer.insert(buffer.global_cursor_pos, char[0]);
+                    buffer.cursor_pos.x += 1;
+                    buffer.global_cursor_pos += 1;
                 },
                 else => {},
             }
         }
-        _ = sdl.SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);
+        _ = sdl.SDL_SetRenderDrawColor(renderer, 0x0C, 0x0C, 0x0C, 0);
         _ = sdl.SDL_RenderClear(renderer);
 
-        render_text(renderer, font_texture, buffer.buffer.items, la.vec2f(0, 0), 0x23FF0000, 5);
+        render_text(renderer, font_texture, buffer.buffer.items, la.vec2f(0, 0), 0xFF90B080, 5);
         render_cursor(renderer, buffer, 0x0000FF000, 5);
         render_mark(renderer, buffer, 0x00009900, 5);
         sdl.SDL_RenderPresent(renderer);
