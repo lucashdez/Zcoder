@@ -58,7 +58,7 @@ const Buffer = struct {
 pub fn line_length(text: *const std.ArrayList(u8), line: usize) usize {
     var len: usize = 0;
     if (line == 0) {
-        while (text.items[len] != '\n') {
+        while (len < text.items.len and text.items[len] != '\n') {
             len += 1;
         }
     } else {
@@ -362,7 +362,20 @@ pub fn main() !void {
                                 buffer.global_cursor_pos += @intCast(buffer.cursor_pos.x);
                             }
                         },
-                        sdl.SDLK_DOWN => {},
+                        sdl.SDLK_DOWN => {
+                            const len = line_length(buffer.buffer, @intCast(buffer.cursor_pos.y));
+                            const first_in_next_line = ((buffer.global_cursor_pos - @as(usize, @intCast(buffer.cursor_pos.x))) + len + 1);
+                            if (buffer.buffer.items.len > first_in_next_line) {
+                                buffer.cursor_pos.y += 1;
+                                buffer.global_cursor_pos -= @as(usize, @intCast(buffer.cursor_pos.x));
+                                buffer.global_cursor_pos += len + 1;
+                                const next_len = line_length(buffer.buffer, @intCast(buffer.cursor_pos.y));
+                                if (buffer.cursor_pos.x > next_len) {
+                                    buffer.cursor_pos.x = @intCast(next_len);
+                                }
+                                buffer.global_cursor_pos += @intCast(buffer.cursor_pos.x);
+                            }
+                        },
                         sdl.SDLK_LEFT => {
                             if (buffer.cursor_pos.x > 0) {
                                 buffer.cursor_pos.x -= 1;
