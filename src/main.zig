@@ -52,7 +52,7 @@ const Buffer = struct {
     global_cursor_pos: usize,
     mark_pos: BufferPos2D,
     buffer: *std.ArrayList(u8),
-    file_name: ?*const u8,
+    file_name: ?[]const u8,
     file: ?std.fs.File,
 
     pub fn open_or_create_file(buffer: *Buffer, path: []const u8) !void {
@@ -60,6 +60,7 @@ const Buffer = struct {
             break :blk try std.fs.cwd().createFile(path, .{ .read = true });
         };
         if (buffer.file) |file| {
+            buffer.file_name = path;
             buffer.cursor_pos = .{ .x = 0, .y = 0 };
             buffer.global_cursor_pos = 0;
             buffer.mark_pos = buffer.cursor_pos;
@@ -70,9 +71,11 @@ const Buffer = struct {
             _ = try buffered.read(buffer.buffer.items);
         }
     }
-    pub fn save_file(buf: *const Buffer) !void {
+    pub fn save_file(buf: *Buffer) !void {
         if (buf.file) |file| {
-            try file.writeAll(buf.buffer.items);
+            file.close();
+            buf.file = try std.fs.cwd().createFile(buf.file_name.?, .{ .truncate = true });
+            try buf.file.?.writeAll(buf.buffer.items);
         }
     }
 };
