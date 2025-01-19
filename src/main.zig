@@ -52,7 +52,29 @@ const Buffer = struct {
     global_cursor_pos: usize,
     mark_pos: BufferPos2D,
     buffer: *std.ArrayList(u8),
-    file_name: *const u8,
+    file_name: ?*const u8,
+    file: ?std.fs.File,
+
+    pub fn open_or_create_file(buffer: *Buffer, path: []const u8) !void {
+        buffer.file = std.fs.cwd().openFile(path, .{ .mode = .read_write, .lock = .none }) catch blk: {
+            break :blk try std.fs.cwd().createFile(path, .{ .read = true });
+        };
+        if (buffer.file) |file| {
+            buffer.cursor_pos = .{ .x = 0, .y = 0 };
+            buffer.global_cursor_pos = 0;
+            buffer.mark_pos = buffer.cursor_pos;
+            var buffered = std.io.bufferedReader(file.reader());
+            const metadata = try file.metadata();
+            try buffer.buffer.resize(metadata.size());
+            print("{}", .{metadata.size()});
+            _ = try buffered.read(buffer.buffer.items);
+        }
+    }
+    pub fn save_file(buf: *const Buffer) !void {
+        if (buf.file) |file| {
+            try file.writeAll(buf.buffer.items);
+        }
+    }
 };
 
 pub fn line_length(text: *const std.ArrayList(u8), line: usize) usize {
@@ -329,7 +351,16 @@ pub fn main() !void {
     surface = try create_surface_from_file(&arena, "font_white.png");
     const font_texture: *sdl.SDL_Texture = sdl.SDL_CreateTextureFromSurface(renderer, surface).?;
     var arr = std.ArrayList(u8).init(allocator);
-    var buffer: Buffer = Buffer{ .arena = Arena.init(&allocator, 1 << 10), .cursor_pos = BufferPos2D.init(0, 0), .global_cursor_pos = 0, .mark_pos = BufferPos2D.init(2, 0), .buffer = &arr, .file_name = undefined };
+    var buffer: Buffer = Buffer{
+        .arena = Arena.init(&allocator, 1 << 10),
+        .cursor_pos = BufferPos2D.init(0, 0),
+        .global_cursor_pos = 0,
+        .mark_pos = BufferPos2D.init(2, 0),
+        .buffer = &arr,
+        .file_name = null,
+        .file = null,
+    };
+    try buffer.open_or_create_file("main.c");
     var quit: bool = false;
     while (!quit) {
         var event: sdl.SDL_Event = undefined;
@@ -415,4 +446,6 @@ pub fn main() !void {
         sdl.SDL_RenderPresent(renderer);
     }
     sdl.SDL_Quit();
+    print("SE ACABO", .{});
+    try buffer.save_file();
 }
