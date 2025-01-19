@@ -14,6 +14,10 @@ const FONT_CHAR_HEIGHT = FONT_HEIGHT / FONT_ROWS;
 
 const print = std.debug.print;
 
+const Application = struct {
+    graphics_ctx: i32,
+};
+
 const Arena = struct {
     base: *const std.mem.Allocator,
     mem: [*]const u8,
