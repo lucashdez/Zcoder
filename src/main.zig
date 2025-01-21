@@ -1,8 +1,12 @@
 const std = @import("std");
+const TARGET_OS = @import("builtin").os.tag;
 const sdl = @cImport({
     @cInclude("SDL2/SDL.h");
 });
 const zigimg = @import("zigimg");
+const Font = @import("font/font.zig");
+const FontAttributes = Font.FontAttributes;
+const Arena = @import("memory/memory.zig").Arena;
 
 const la = @import("lin_alg/la.zig");
 const FONT_ROWS = 7;
@@ -16,21 +20,6 @@ const print = std.debug.print;
 
 const Application = struct {
     graphics_ctx: i32,
-};
-
-const Arena = struct {
-    base: *const std.mem.Allocator,
-    mem: [*]const u8,
-    pos: usize,
-    cap: usize,
-    pub fn init(allocator: *const std.mem.Allocator, size: usize) Arena {
-        return Arena{
-            .base = allocator,
-            .mem = allocator.rawAlloc(size, @alignOf(u8), 0).?,
-            .pos = 0,
-            .cap = size,
-        };
-    }
 };
 
 const BufferPos2D = struct {
@@ -216,8 +205,8 @@ pub fn render_text(renderer: *sdl.SDL_Renderer, font: *sdl.SDL_Texture, text: []
 
 pub fn render_cursor(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, scale: f32) void {
     const r: u8 = @intCast((color >> 16) & 0xff);
-    const g: u8 = @intCast((color >> 8) & 0xff);
-    const b: u8 = @intCast((color >> 0) & 0xff);
+    const g: u8 = @intCast((color >>  8) & 0xff);
+    const b: u8 = @intCast((color >>  0) & 0xff);
     const a: u8 = @intCast((color >> 24) & 0xff);
     _ = sdl.SDL_SetRenderDrawColor(renderer, r, g, b, a);
 
@@ -339,6 +328,8 @@ pub fn create_surface_from_file(arena: *std.heap.ArenaAllocator, file_path: []co
 }
 
 pub fn main() !void {
+    _ = Font;
+    _ = FontAttributes;
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const allocator = std.heap.page_allocator;
     defer arena.deinit();
@@ -355,8 +346,9 @@ pub fn main() !void {
 
     window = sdl.SDL_CreateWindow("my window", 100, 100, 640, 480, sdl.SDL_WINDOW_SHOWN | sdl.SDL_WINDOW_RESIZABLE).?;
     renderer = sdl.SDL_CreateRenderer(window, -1, sdl.SDL_RENDERER_ACCELERATED).?;
-    surface = try create_surface_from_file(&arena, "font_white.png");
-    const font_texture: *sdl.SDL_Texture = sdl.SDL_CreateTextureFromSurface(renderer, surface).?;
+    surface = if (TARGET_OS == .windows) undefined else try create_surface_from_file(&arena, "font_white.png");
+    const font_texture: *sdl.SDL_Texture = if (TARGET_OS == .windows) undefined else sdl.SDL_CreateTextureFromSurface(renderer, surface).?;
+
     var arr = std.ArrayList(u8).init(allocator);
     var buffer: Buffer = Buffer{
         .arena = Arena.init(&allocator, 1 << 10),
