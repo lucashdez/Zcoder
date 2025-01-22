@@ -1,0 +1,1 @@
+pub const vk = @import("vk_api_raw_win32.zig");

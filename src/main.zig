@@ -6,7 +6,10 @@ const sdl = @cImport({
 const zigimg = @import("zigimg");
 const Font = @import("font/font.zig");
 const FontAttributes = Font.FontAttributes;
-const Arena = @import("memory/memory.zig").Arena;
+const lhmem = @import("memory/memory.zig");
+const Arena = lhmem.Arena;
+const lhvk = @import("graphics/lhvk.zig");
+
 
 const la = @import("lin_alg/la.zig");
 const FONT_ROWS = 7;
@@ -19,7 +22,7 @@ const FONT_CHAR_HEIGHT = FONT_HEIGHT / FONT_ROWS;
 const print = std.debug.print;
 
 const Application = struct {
-    graphics_ctx: i32,
+    graphics_ctx: lhvk.LhvkGraphicsCtx,
 };
 
 const BufferPos2D = struct {
@@ -330,6 +333,8 @@ pub fn create_surface_from_file(arena: *std.heap.ArenaAllocator, file_path: []co
 pub fn main() !void {
     _ = Font;
     _ = FontAttributes;
+
+
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const allocator = std.heap.page_allocator;
     defer arena.deinit();
@@ -347,11 +352,20 @@ pub fn main() !void {
     window = sdl.SDL_CreateWindow("my window", 100, 100, 640, 480, sdl.SDL_WINDOW_SHOWN | sdl.SDL_WINDOW_RESIZABLE).?;
     renderer = sdl.SDL_CreateRenderer(window, -1, sdl.SDL_RENDERER_ACCELERATED).?;
     surface = if (TARGET_OS == .windows) undefined else try create_surface_from_file(&arena, "font_white.png");
+
+    var app: Application = undefined;
+    app.graphics_ctx.window.handle = window;
+    var vkapp: lhvk.VkApp = undefined;
+    vkapp.arena = lhmem.make_arena((1<<10) * 24);
+    var vkappdata: lhvk.VkAppData = undefined;
+    vkappdata.arena = lhmem.make_arena((1<<10) * 24);
+    try lhvk.init_vulkan(&app.graphics_ctx, &vkapp, &vkappdata);
+
     const font_texture: *sdl.SDL_Texture = if (TARGET_OS == .windows) undefined else sdl.SDL_CreateTextureFromSurface(renderer, surface).?;
 
     var arr = std.ArrayList(u8).init(allocator);
     var buffer: Buffer = Buffer{
-        .arena = Arena.init(&allocator, 1 << 10),
+        .arena = lhmem.make_arena(1 << 10),
         .cursor_pos = BufferPos2D.init(0, 0),
         .global_cursor_pos = 0,
         .mark_pos = BufferPos2D.init(2, 0),
