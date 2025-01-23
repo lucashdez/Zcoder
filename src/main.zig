@@ -9,6 +9,7 @@ const FontAttributes = Font.FontAttributes;
 const lhmem = @import("memory/memory.zig");
 const Arena = lhmem.Arena;
 const lhvk = @import("graphics/lhvk.zig");
+const windowing = @import("graphics/win32.zig");
 
 
 const la = @import("lin_alg/la.zig");
@@ -296,8 +297,6 @@ pub fn render_mark(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, scal
         _ = sdl.SDL_RenderFillRect(renderer, &left_side);
     }
 }
-// TODO: Buffer capacity
-// TODO: Load/save buffers
 
 pub fn create_surface_from_file(arena: *std.heap.ArenaAllocator, file_path: []const u8) !*sdl.SDL_Surface {
     const allocator = arena.allocator();
@@ -354,14 +353,12 @@ pub fn main() !void {
     surface = if (TARGET_OS == .windows) undefined else try create_surface_from_file(&arena, "font_white.png");
 
     var app: Application = undefined;
-    app.graphics_ctx.window.handle = window;
+    app.graphics_ctx.window = windowing.create_window("algo");
     var vkapp: lhvk.VkApp = undefined;
     vkapp.arena = lhmem.make_arena((1<<10) * 24);
     var vkappdata: lhvk.VkAppData = undefined;
     vkappdata.arena = lhmem.make_arena((1<<10) * 24);
     try lhvk.init_vulkan(&app.graphics_ctx, &vkapp, &vkappdata);
-
-    const font_texture: *sdl.SDL_Texture = if (TARGET_OS == .windows) undefined else sdl.SDL_CreateTextureFromSurface(renderer, surface).?;
 
     var arr = std.ArrayList(u8).init(allocator);
     var buffer: Buffer = Buffer{
@@ -453,7 +450,6 @@ pub fn main() !void {
         _ = sdl.SDL_SetRenderDrawColor(renderer, 0x0C, 0x0C, 0x0C, 0);
         _ = sdl.SDL_RenderClear(renderer);
 
-        render_text(renderer, font_texture, buffer.buffer.items, la.vec2f(0, 0), 0xFF90B080, 5);
         render_cursor(renderer, buffer, 0x0000FF000, 5);
         render_mark(renderer, buffer, 0x00009900, 5);
         sdl.SDL_RenderPresent(renderer);

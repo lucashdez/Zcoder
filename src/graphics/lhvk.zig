@@ -18,6 +18,7 @@ pub const VkApp = struct {
     device: vk.VkDevice,
     graphics_queue: vk.VkQueue,
     surface: vk.VkSurfaceKHR,
+    swapchain: vk.VkSwapchainKHR,
 };
 
 pub const VkAppData = struct {
@@ -191,7 +192,8 @@ fn find_queue_families(device: vk.VkPhysicalDevice) !QueueFamilyIndices {
     return indices;
 }
 
-fn is_device_suitable(device: vk.VkPhysicalDevice) bool {
+fn is_device_suitable(device: vk.VkPhysicalDevice, rates: *u8) bool
+{
     var device_properties: vk.VkPhysicalDeviceProperties = std.mem.zeroes(vk.VkPhysicalDeviceProperties);
     var device_features: vk.VkPhysicalDeviceFeatures = std.mem.zeroes(vk.VkPhysicalDeviceFeatures);
 
@@ -199,32 +201,52 @@ fn is_device_suitable(device: vk.VkPhysicalDevice) bool {
     vk.vkGetPhysicalDeviceFeatures(device, &device_features);
     const families_found: QueueFamilyIndices = find_queue_families(device) catch return undefined;
 
-    if ((device_properties.deviceType == vk.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU or device_properties.deviceType == vk.VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU) and device_features.geometryShader != 0 and families_found.graphics_family != undefined) {
-        u.trace("{s} selected.", .{device_properties.deviceName});
+    switch (device_properties.deviceType)
+    {
+        vk.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU => {rates .* = 10;},
+        vk.VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU => {rates.* = 5;},
+        else => {rates.* = 0;}
+    }
+    if (rates.* != 0
+        and device_features.geometryShader != 0
+        and families_found.graphics_family != undefined)
+    {
+        u.trace("{s} found.", .{device_properties.deviceName});
         return true;
     }
     return false;
 }
 
-// TODO: Rate devices
 fn pick_physical_device(app: *VkApp, app_data: *VkAppData) !void {
     var tmp: Arena = lhmem.scratch_block();
-
     var device_count: u32 = 0;
+    var rates: []u8 = undefined;
+
     _ = vk.vkEnumeratePhysicalDevices(app.instance, &device_count, null);
     if (device_count == 0) {
         std.debug.print("No physical devices found", .{});
     }
+    rates = tmp.push_array(u8, 2)[0..device_count];
     const physical_devices_bytes = tmp.push_array(vk.VkPhysicalDevice, device_count);
+    u.trace("Devices found: {}", .{device_count});
     const physical_devices: [*]vk.VkPhysicalDevice = @ptrCast(@alignCast(physical_devices_bytes));
     _ = vk.vkEnumeratePhysicalDevices(app.instance, &device_count, physical_devices);
     const dview: []vk.VkPhysicalDevice = physical_devices[0..device_count];
-    for (dview) |device| {
-        if (is_device_suitable(device)) {
-            app_data.physical_device = device;
-            return;
+    for (dview, 0..device_count) |device, i|
+    {
+        if (!is_device_suitable(device, &rates[i])) rates[i] = 0;
+    }
+    var max: i32 = 0;
+    var i: usize = 0;
+    for(0..rates.len) |idx|
+    {
+        if (rates[idx] > max)
+        {
+            max = rates[idx];
+            i = idx;
         }
     }
+    app_data.physical_device = dview[i];
 }
 
 const QueueFamilyIndices = struct {
@@ -255,11 +277,15 @@ fn create_logical_device(app: *VkApp, app_data: *VkAppData) void {
     create_info.pQueueCreateInfos = &queue_create_info;
     create_info.queueCreateInfoCount = 1;
     create_info.pEnabledFeatures = &device_features;
-    { // EXTENSIONS
-        create_info.enabledExtensionCount = 0;
-        create_info.ppEnabledExtensionNames = null;
+    // EXTENSIONS
+    {
+        var editable: [*][*c]const u8 = app.arena.push_array([*c]const u8, 1);
+        editable[0] = vk.VK_KHR_SWAPCHAIN_EXTENSION_NAME;
+        create_info.enabledExtensionCount = 1;
+        create_info.ppEnabledExtensionNames = editable;
     }
-    { // LAYERS IGNORED
+    // LAYERS IGNORED
+    {
         create_info.enabledLayerCount = 0;
         create_info.ppEnabledLayerNames = null;
     }
@@ -268,7 +294,38 @@ fn create_logical_device(app: *VkApp, app_data: *VkAppData) void {
     vk.vkGetDeviceQueue(app.device, indices.graphics_family.?, 0, &app.graphics_queue);
 }
 
-pub fn init_vulkan(ctx: *LhvkGraphicsCtx, app: *VkApp, app_data: *VkAppData) !void {
+const SwapChainSupportDetails = struct {
+    capabilities: vk.VkSurfaceCapabilitiesKHR,
+    formats: [*]vk.VkSurfaceFormatKHR,
+    presentModes: [*]vk.VkPresentModeKHR,
+};
+
+fn query_swapchain_support(arena: *Arena, app: *const VkApp, app_data: *const VkAppData) SwapChainSupportDetails {
+    _ = app_data;
+    var details: SwapChainSupportDetails = undefined;
+    vk.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(app.device, app.surface, &details.capabilities);
+
+    var format_count: u32 = 0;
+    vk.vkGetPhysicalDeviceSurfaceFormatsKHR(app.device, app.surface, &format_count, null);
+    if (format_count != 0)
+    {
+        details.formats = arena.push_array(vk.VkSurfaceFormatKHR, format_count);
+        vk.vkGetPhysicalDeviceSurfaceFormatsKHR(app.device, app.surface, &format_count, details.formats);
+    }
+
+    var present_mode_count: u32 = 0;
+    vk.vkGetPhysicalDeviceSurfacePresentModesKHR(app.device, app.surface, &present_mode_count, null);
+    if (present_mode_count != 0)
+    {
+        details.presentModes = arena.push_array(vk.VkPresentModeKHR, present_mode_count);
+        vk.vkGetPhysicalDeviceSurfacePresentModesKHR(app.device, app.surface, &present_mode_count, details.presentModes);
+    }
+
+    return details;
+}
+
+pub fn init_vulkan(ctx: *LhvkGraphicsCtx, app: *VkApp, app_data: *VkAppData) !void
+{
     _ = try create_instance(app, app_data);
     _ = setup_debug_messenger(app);
     create_surface(ctx, app);
@@ -277,24 +334,16 @@ pub fn init_vulkan(ctx: *LhvkGraphicsCtx, app: *VkApp, app_data: *VkAppData) !vo
     create_logical_device(app, app_data);
 }
 
-fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp) void {
-    _ = ctx;
-    _ = app;
-    if (@import("builtin").os.tag == .windows) {
-        // const instance = std.os.windows.kernel32.GetModuleHandleW(null);
-        // var info: sdl.SDL_SysWMinfo = undefined;
-        // sdl.SDL_VERSION(&info.version);
-        // sdl.SDL_GetWindowWMinfo(ctx.window.handle,&info);
-        // const hwnd = info.info.win.window;
-
-        //      var create_info: vk.VkWin32SurfaceCreateInfoKHR = .{
-        //         .sType = vk.VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-        //         .hwnd = hwnd,
-        //         .hinstance = instance,
-        //      };
-        //      const result = vk.vkCreateWin32SurfaceKHR(app.instance, &create_info, null, &app.surface);
-        //      assert(result == vk.VK_SUCCESS);
+fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp) void
+{
+    if (@import("builtin").os.tag == .windows)
+    {
+        var create_info: vk.VkWin32SurfaceCreateInfoKHR = .{
+            .sType = vk.VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
+            .hwnd = @ptrCast(@alignCast(ctx.window.surface.?)),
+            .hinstance = @ptrCast(@alignCast(ctx.window.instance.?)),
+        };
+        const result = vk.vkCreateWin32SurfaceKHR(app.instance, &create_info, null, &app.surface);
+        assert(result == vk.VK_SUCCESS);
     }
-    // sdl.SDL_Vulkan_CreateSurface(ctx.window.handle, app.instance, &app.surface);
-
 }
