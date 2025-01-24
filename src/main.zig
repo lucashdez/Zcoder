@@ -99,69 +99,6 @@ pub fn line_length(text: *const std.ArrayList(u8), line: usize) usize {
     return len;
 }
 
-const PixelMask = struct {
-    red: u32,
-    green: u32,
-    blue: u32,
-    alpha: u32,
-
-    const Self = @This();
-    /// construct a pixelmask given the colorstorage.
-    /// *Attention*: right now only works for 24-bit RGB, BGR and 32-bit RGBA,BGRA
-    pub fn fromPixelStorage(storage: zigimg.color.PixelStorage) !Self {
-        switch (storage) {
-            .bgra32 => return Self{
-                .red = 0x00ff0000,
-                .green = 0x0000ff00,
-                .blue = 0x000000ff,
-                .alpha = 0xff000000,
-            },
-            .rgba32 => return Self{
-                .red = 0x000000ff,
-                .green = 0x0000ff00,
-                .blue = 0x00ff0000,
-                .alpha = 0xff000000,
-            },
-            .bgr24 => return Self{
-                .red = 0xff0000,
-                .green = 0x00ff00,
-                .blue = 0x0000ff,
-                .alpha = 0,
-            },
-            .rgb24 => return Self{
-                .red = 0x0000ff,
-                .green = 0x00ff00,
-                .blue = 0xff0000,
-                .alpha = 0,
-            },
-            else => return error.InvalidColorStorage,
-        }
-    }
-};
-
-const PixelInfo = struct {
-    /// bits per pixel
-    bits: c_int,
-    /// the pitch (see SDL docs, this is the width of the image times the size per pixel in byte)
-    pitch: c_int,
-    /// the pixelmask for the (A)RGB storage
-    pixelmask: PixelMask,
-
-    const Self = @This();
-
-    pub fn from(image: zigimg.Image) !Self {
-        const Sizes = struct { bits: c_int, pitch: c_int };
-        const sizes: Sizes = switch (image.pixels) {
-            .bgra32 => Sizes{ .bits = 32, .pitch = 4 * @as(c_int, @intCast(image.width)) },
-            .rgba32 => Sizes{ .bits = 32, .pitch = 4 * @as(c_int, @intCast(image.width)) },
-            .rgb24 => Sizes{ .bits = 24, .pitch = 3 * @as(c_int, @intCast(image.width)) },
-            .bgr24 => Sizes{ .bits = 24, .pitch = 3 * @as(c_int, @intCast(image.width)) },
-            else => return error.InvalidColorStorage,
-        };
-        return Self{ .bits = @as(c_int, @intCast(sizes.bits)), .pitch = @as(c_int, @intCast(sizes.pitch)), .pixelmask = try PixelMask.fromPixelStorage(image.pixels) };
-    }
-};
-
 pub fn render_char(renderer: *sdl.SDL_Renderer, font: *sdl.SDL_Texture, c: u8, pos: la.Vec2f, color: u32, scale: f32) void {
     if (c > 0) {
         const index = c - 32;
@@ -299,34 +236,9 @@ pub fn render_mark(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, scal
 }
 
 pub fn create_surface_from_file(arena: *std.heap.ArenaAllocator, file_path: []const u8) !*sdl.SDL_Surface {
-    const allocator = arena.allocator();
-    if (!std.mem.eql(u8, file_path, "")) {
-        var file = std.fs.cwd().openFile(file_path, .{}) catch {
-            print("cannot read file\n", .{});
-            return error.CannotOpenFile;
-        };
-        const img = try zigimg.Image.fromFile(allocator, &file);
-        const pixel_info = try PixelInfo.from(img);
-
-        const image_data: *anyopaque = blk: {
-            switch (img.pixels) {
-                .bgr24 => |bgr24| break :blk @as(*anyopaque, @ptrCast(bgr24.ptr)),
-                .bgra32 => |bgra32| break :blk @as(*anyopaque, @ptrCast(bgra32.ptr)),
-                .rgba32 => |rgba32| break :blk @as(*anyopaque, @ptrCast(rgba32.ptr)),
-                .rgb24 => |rgb24| break :blk @as(*anyopaque, @ptrCast(rgb24.ptr)),
-                else => return error.InvalidColorStorage,
-            }
-        };
-
-        const surface = sdl.SDL_CreateRGBSurfaceFrom(image_data, @intCast(img.width), @intCast(img.height), pixel_info.bits, pixel_info.pitch, pixel_info.pixelmask.red, pixel_info.pixelmask.green, pixel_info.pixelmask.blue, pixel_info.pixelmask.alpha);
-        if (surface == null) {
-            const err = sdl.SDL_GetError();
-            std.debug.print("ERROR: {s}\n", .{err});
-        }
-        return surface;
-    } else {
-        return error.NoFile;
-    }
+    _ = arena;
+    _ = file_path;
+    return error.UNIMPLEMENTED;
 }
 
 pub fn main() !void {
@@ -354,11 +266,9 @@ pub fn main() !void {
 
     var app: Application = undefined;
     app.graphics_ctx.window = windowing.create_window("algo");
-    var vkapp: lhvk.VkApp = undefined;
-    vkapp.arena = lhmem.make_arena((1<<10) * 24);
-    var vkappdata: lhvk.VkAppData = undefined;
-    vkappdata.arena = lhmem.make_arena((1<<10) * 24);
-    try lhvk.init_vulkan(&app.graphics_ctx, &vkapp, &vkappdata);
+    app.graphics_ctx.vk_app.arena = lhmem.make_arena((1<<10) * 24);
+    app.graphics_ctx.vk_appdata.arena = lhmem.make_arena((1<<10) * 24);
+    try lhvk.init_vulkan(&app.graphics_ctx);
 
     var arr = std.ArrayList(u8).init(allocator);
     var buffer: Buffer = Buffer{

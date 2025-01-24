@@ -1,0 +1,4 @@
+# Windows
++ Finish vulkan initialization
++ render cursor and mark through vulkan.
++ Use Native window instead of sdl

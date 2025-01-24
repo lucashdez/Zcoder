@@ -5,10 +5,13 @@ const lhmem = @import("../memory/memory.zig");
 const Arena = lhmem.Arena;
 const assert = std.debug.assert;
 const u = @import("lhvk_utils.zig");
+const la = @import("../lin_alg/la.zig");
 
 
 pub const LhvkGraphicsCtx = struct {
     window: Window,
+    vk_app: VkApp,
+    vk_appdata: VkAppData,
 };
 
 pub const VkApp = struct {
@@ -19,6 +22,10 @@ pub const VkApp = struct {
     graphics_queue: vk.VkQueue,
     surface: vk.VkSurfaceKHR,
     swapchain: vk.VkSwapchainKHR,
+    swapchain_images: []vk.VkImage,
+    format: vk.VkFormat,
+    extent: vk.VkExtent2D,
+    image_views: []vk.VkImageView,
 };
 
 pub const VkAppData = struct {
@@ -176,30 +183,38 @@ fn create_instance(app: *VkApp, app_data: ?*VkAppData) VulkanInitError!void {
     assert(app.instance != null);
 }
 
-fn find_queue_families(device: vk.VkPhysicalDevice) !QueueFamilyIndices {
+fn find_queue_families(ctx: *LhvkGraphicsCtx, device: vk.VkPhysicalDevice) !QueueFamilyIndices {
+    const app = ctx.vk_app;
     var scratch: Arena = lhmem.scratch_block();
-    var indices: QueueFamilyIndices = .{ .graphics_family = null };
+    var indices: QueueFamilyIndices = .{ .graphics_family = null, .present_family = null };
     var queue_family_count: u32 = 0;
     vk.vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, null);
     const queue_families: [*]vk.VkQueueFamilyProperties = scratch.push_array(vk.VkQueueFamilyProperties, queue_family_count);
     vk.vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, @ptrCast(@constCast(queue_families)));
     for (queue_families, 0..queue_family_count) |queue, i| {
+        var present_support: u32 = 0;
+        _ = vk.vkGetPhysicalDeviceSurfaceSupportKHR(device, @intCast(i), app.surface, &present_support);
+        if (present_support == vk.VK_TRUE) {
+            indices.present_family = @intCast(i);
+        }
         if ((queue.queueFlags & vk.VK_QUEUE_GRAPHICS_BIT) == 1) {
             indices.graphics_family = @intCast(i);
-            break;
         }
     }
     return indices;
 }
 
-fn is_device_suitable(device: vk.VkPhysicalDevice, rates: *u8) bool
+fn is_device_suitable(device: vk.VkPhysicalDevice, surface: vk.VkSurfaceKHR, rates: *u8, ctx: *LhvkGraphicsCtx) bool
 {
     var device_properties: vk.VkPhysicalDeviceProperties = std.mem.zeroes(vk.VkPhysicalDeviceProperties);
     var device_features: vk.VkPhysicalDeviceFeatures = std.mem.zeroes(vk.VkPhysicalDeviceFeatures);
 
     vk.vkGetPhysicalDeviceProperties(device, &device_properties);
     vk.vkGetPhysicalDeviceFeatures(device, &device_features);
-    const families_found: QueueFamilyIndices = find_queue_families(device) catch return undefined;
+    const families_found: QueueFamilyIndices = find_queue_families(ctx, device) catch return undefined;
+    var scratch = lhmem.scratch_block();
+    const swapchain_support = query_swapchain_support(&scratch, device, surface);
+    const supports_swapchain: bool = (swapchain_support.presentModes.len != 0) and (swapchain_support.formats.len != 0);
 
     switch (device_properties.deviceType)
     {
@@ -212,12 +227,14 @@ fn is_device_suitable(device: vk.VkPhysicalDevice, rates: *u8) bool
         and families_found.graphics_family != undefined)
     {
         u.trace("{s} found.", .{device_properties.deviceName});
-        return true;
+        return supports_swapchain;
     }
     return false;
 }
 
-fn pick_physical_device(app: *VkApp, app_data: *VkAppData) !void {
+fn pick_physical_device(ctx: *LhvkGraphicsCtx) !void {
+    const app: *VkApp = &ctx.vk_app;
+    const app_data: *VkAppData = &ctx.vk_appdata;
     var tmp: Arena = lhmem.scratch_block();
     var device_count: u32 = 0;
     var rates: []u8 = undefined;
@@ -234,7 +251,7 @@ fn pick_physical_device(app: *VkApp, app_data: *VkAppData) !void {
     const dview: []vk.VkPhysicalDevice = physical_devices[0..device_count];
     for (dview, 0..device_count) |device, i|
     {
-        if (!is_device_suitable(device, &rates[i])) rates[i] = 0;
+        if (!is_device_suitable(device, app.surface, &rates[i], ctx)) rates[i] = 0;
     }
     var max: i32 = 0;
     var i: usize = 0;
@@ -251,12 +268,16 @@ fn pick_physical_device(app: *VkApp, app_data: *VkAppData) !void {
 
 const QueueFamilyIndices = struct {
     graphics_family: ?u32,
+    present_family: ?u32,
 };
 
-fn create_logical_device(app: *VkApp, app_data: *VkAppData) void {
-    const indices: QueueFamilyIndices = find_queue_families(app_data.physical_device) catch {
-        return .{ .graphics_family = null };
+fn create_logical_device(ctx: *LhvkGraphicsCtx) void {
+    var app: *VkApp = &ctx.vk_app;
+    var app_data: *VkAppData = &ctx.vk_appdata;
+    const indices: QueueFamilyIndices = find_queue_families(ctx, app_data.physical_device) catch {
+        return .{ .graphics_family = null, .present_family = null };
     };
+
     assert(indices.graphics_family != null);
     var queue_create_info: vk.VkDeviceQueueCreateInfo = undefined;
     queue_create_info.sType = vk.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
@@ -296,42 +317,145 @@ fn create_logical_device(app: *VkApp, app_data: *VkAppData) void {
 
 const SwapChainSupportDetails = struct {
     capabilities: vk.VkSurfaceCapabilitiesKHR,
-    formats: [*]vk.VkSurfaceFormatKHR,
-    presentModes: [*]vk.VkPresentModeKHR,
+    formats: []vk.VkSurfaceFormatKHR,
+    presentModes: []vk.VkPresentModeKHR,
 };
 
-fn query_swapchain_support(arena: *Arena, app: *const VkApp, app_data: *const VkAppData) SwapChainSupportDetails {
-    _ = app_data;
+fn query_swapchain_support(arena: *Arena, device: vk.VkPhysicalDevice, surface: vk.VkSurfaceKHR) SwapChainSupportDetails {
     var details: SwapChainSupportDetails = undefined;
-    vk.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(app.device, app.surface, &details.capabilities);
+    _ = vk.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
 
     var format_count: u32 = 0;
-    vk.vkGetPhysicalDeviceSurfaceFormatsKHR(app.device, app.surface, &format_count, null);
+    _ = vk.vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, null);
     if (format_count != 0)
     {
-        details.formats = arena.push_array(vk.VkSurfaceFormatKHR, format_count);
-        vk.vkGetPhysicalDeviceSurfaceFormatsKHR(app.device, app.surface, &format_count, details.formats);
+        details.formats = arena.push_array(vk.VkSurfaceFormatKHR, format_count)[0..format_count];
+        _ = vk.vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, details.formats.ptr);
     }
 
     var present_mode_count: u32 = 0;
-    vk.vkGetPhysicalDeviceSurfacePresentModesKHR(app.device, app.surface, &present_mode_count, null);
+    _ = vk.vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, null);
     if (present_mode_count != 0)
     {
-        details.presentModes = arena.push_array(vk.VkPresentModeKHR, present_mode_count);
-        vk.vkGetPhysicalDeviceSurfacePresentModesKHR(app.device, app.surface, &present_mode_count, details.presentModes);
+        details.presentModes = arena.push_array(vk.VkPresentModeKHR, present_mode_count)[0..present_mode_count];
+        _ = vk.vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, details.presentModes.ptr);
     }
 
     return details;
 }
 
-pub fn init_vulkan(ctx: *LhvkGraphicsCtx, app: *VkApp, app_data: *VkAppData) !void
+fn choose_surface_format(available_formats: []vk.VkSurfaceFormatKHR) vk.VkSurfaceFormatKHR {
+    for (available_formats) |format|
+    {
+        if (format.format == vk.VK_FORMAT_R8G8B8A8_SRGB and format.colorSpace == vk.VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) return format;
+    }
+    return available_formats[0];
+}
+
+fn choose_swap_extent(window: Window, capabilities: vk.VkSurfaceCapabilitiesKHR) vk.VkExtent2D {
+    var actual_extent: vk.VkExtent2D = .{
+        .width = window.width,
+        .height = window.height,
+    };
+    la.clamp(u32, &actual_extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
+    la.clamp(u32, &actual_extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
+    return actual_extent;
+}
+
+fn create_swapchain(ctx: *LhvkGraphicsCtx)
+!void
 {
-    _ = try create_instance(app, app_data);
-    _ = setup_debug_messenger(app);
-    create_surface(ctx, app);
-    _ = try pick_physical_device(app, app_data);
-    assert(app_data.physical_device != null);
-    create_logical_device(app, app_data);
+    var app: *VkApp = &ctx.vk_app;
+    const app_data: *VkAppData = &ctx.vk_appdata;
+    var arena = lhmem.scratch_block();
+    const swapchain_support = query_swapchain_support(&arena, app_data.physical_device, app.surface);
+
+    const surface_format = choose_surface_format(swapchain_support.formats);
+    const present_mode = vk.VK_PRESENT_MODE_FIFO_KHR;
+    const extent = choose_swap_extent(ctx.window, swapchain_support.capabilities);
+
+    var image_count = swapchain_support.capabilities.minImageCount + 1;
+    la.clamp(u32, &image_count, swapchain_support.capabilities.minImageCount, swapchain_support.capabilities.maxImageCount);
+
+    var create_info: vk.VkSwapchainCreateInfoKHR = std.mem.zeroes(vk.VkSwapchainCreateInfoKHR);
+    create_info.sType = vk.VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    create_info.surface = app.surface;
+    create_info.minImageCount = image_count;
+    create_info.imageFormat = surface_format.format;
+    create_info.imageColorSpace = surface_format.colorSpace;
+    create_info.imageExtent = extent;
+    create_info.imageArrayLayers = 1;
+    create_info.imageUsage = vk.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    const indices = try find_queue_families(ctx, app_data.physical_device);
+    const real_indices: [2]u32 = .{indices.graphics_family.?, indices.present_family.?};
+    if (indices.graphics_family.? != indices.present_family.?)
+    {
+        create_info.imageSharingMode = vk.VK_SHARING_MODE_CONCURRENT;
+        create_info.queueFamilyIndexCount = 2;
+        create_info.pQueueFamilyIndices = &real_indices;
+    } else {
+        create_info.imageSharingMode = vk.VK_SHARING_MODE_EXCLUSIVE;
+        create_info.queueFamilyIndexCount = 0;
+        create_info.pQueueFamilyIndices = null;
+    }
+
+    create_info.preTransform = swapchain_support.capabilities.currentTransform;
+    create_info.compositeAlpha = vk.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    create_info.presentMode = present_mode;
+    create_info.clipped = vk.VK_TRUE;
+    create_info.oldSwapchain = null;
+
+    if (vk.vkCreateSwapchainKHR(app.device, &create_info, null, &app.swapchain) != vk.VK_SUCCESS) {
+        return error.CANNOT_CREATE_SWAPCHAIN;
+    }
+    _ = vk.vkGetSwapchainImagesKHR(app.device, app.swapchain, &image_count, null);
+    app.swapchain_images = app.arena.push_array(vk.VkImage, image_count)[0..image_count];
+    _ = vk.vkGetSwapchainImagesKHR(app.device, app.swapchain, &image_count, app.swapchain_images.ptr);
+    app.format = surface_format.format;
+    app.extent = extent;
+}
+
+fn create_image_views(ctx: *LhvkGraphicsCtx)
+!void
+{
+    const app: *VkApp = &ctx.vk_app;
+    app.image_views = app.arena.push_array(vk.VkImageView, app.swapchain_images.len)[0..app.swapchain_images.len];
+    for (app.image_views, 0..app.swapchain_images.len) |view, i|
+    {
+        var info: vk.VkImageViewCreateInfo = std.mem.zeroes(vk.VkImageViewCreateInfo);
+        info.sType = vk.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        info.image = app.swapchain_images[i];
+        info.viewType = vk.VK_IMAGE_VIEW_TYPE_2D;
+        info.format = app.format;
+        info.components.r = vk.VK_COMPONENT_SWIZZLE_IDENTITY;
+        info.components.g = vk.VK_COMPONENT_SWIZZLE_IDENTITY;
+        info.components.b = vk.VK_COMPONENT_SWIZZLE_IDENTITY;
+        info.components.a = vk.VK_COMPONENT_SWIZZLE_IDENTITY;
+        info.subresourceRange.aspectMask = vk.VK_IMAGE_ASPECT_COLOR_BIT;
+        info.subresourceRange.baseMipLevel = 0;
+        info.subresourceRange.levelCount = 1;
+        info.subresourceRange.baseArrayLayer = 0;
+        info.subresourceRange.layerCount = 1;
+        // BUG: Can be copying images instead of modifying array
+        if (vk.vkCreateImageView(app.device, &info, null, @constCast(&view)) != vk.VK_SUCCESS) return error.CannotCreateImageView;
+    }
+}
+
+fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
+
+}
+
+pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void
+{
+    _ = try create_instance(&ctx.vk_app, &ctx.vk_appdata);
+    _ = setup_debug_messenger(&ctx.vk_app);
+    create_surface(ctx, &ctx.vk_app);
+    _ = try pick_physical_device(ctx);
+    assert(ctx.vk_appdata.physical_device != null);
+    create_logical_device(ctx);
+    try create_swapchain(ctx);
+    try create_image_views(ctx);
+    try create_graphics_pipeline(ctx);
 }
 
 fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp) void

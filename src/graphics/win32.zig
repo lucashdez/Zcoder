@@ -24,16 +24,22 @@ fn customproc(
     }
 }
 
+
+
 pub const Window = struct {
     handle: ?*sdl.SDL_Window,
     instance: ?*anyopaque,
     surface: ?*anyopaque,
     display: ?*anyopaque,
+    width: u32,
+    height: u32,
 };
 
 pub fn create_window(comptime name: []const u8) Window {
     const class_name: [*:0]const u16 = W(name);
     const hinstance: raw.HINSTANCE = raw.GetModuleHandleW(null).?;
+    const width: i32 = 800;
+    const height: i32 = 600;
     var wc: raw.WNDCLASSW = std.mem.zeroes(raw.WNDCLASSW);
     wc.lpfnWndProc = customproc;
     wc.hInstance = hinstance;
@@ -53,7 +59,7 @@ pub fn create_window(comptime name: []const u8) Window {
         class_name,
         W("Learn to program"),
         styles,
-        raw.CW_USEDEFAULT, raw.CW_USEDEFAULT, raw.CW_USEDEFAULT, raw.CW_USEDEFAULT,
+        raw.CW_USEDEFAULT, raw.CW_USEDEFAULT, width, height,
         null,
         null,
         hinstance,
@@ -65,5 +71,7 @@ pub fn create_window(comptime name: []const u8) Window {
         .instance = hinstance,
         .surface =  hwnd.?,
         .display =  null,
+        .width = width,
+        .height = height,
     };
 }

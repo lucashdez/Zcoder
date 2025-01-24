@@ -29,3 +29,8 @@ pub fn vec2f_mul(a: Vec2f, b: Vec2f) Vec2f {
 pub fn vec2f_div(a: Vec2f, b: Vec2f) Vec2f {
     return Vec2f{ .x = a.x / b.x, .y = a.y / b.y };
 }
+
+pub fn clamp(comptime T: type, value: *T, min: T, max: T) void {
+    if (value.* < min) value.* = min;
+    if (value.* > max) value.* = max;
+}
