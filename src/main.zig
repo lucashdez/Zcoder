@@ -9,7 +9,7 @@ const FontAttributes = Font.FontAttributes;
 const lhmem = @import("memory/memory.zig");
 const Arena = lhmem.Arena;
 const lhvk = @import("graphics/lhvk.zig");
-const windowing = @import("graphics/win32.zig");
+const windowing = if (@import("builtin").os.tag == .windows) @import("graphics/win32.zig") else @import("graphics/wayland.zig");
 
 
 const la = @import("lin_alg/la.zig");
@@ -235,12 +235,6 @@ pub fn render_mark(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, scal
     }
 }
 
-pub fn create_surface_from_file(arena: *std.heap.ArenaAllocator, file_path: []const u8) !*sdl.SDL_Surface {
-    _ = arena;
-    _ = file_path;
-    return error.UNIMPLEMENTED;
-}
-
 pub fn main() !void {
     _ = Font;
     _ = FontAttributes;
@@ -257,12 +251,11 @@ pub fn main() !void {
     _ = sdl;
 
     var window: *sdl.SDL_Window = undefined;
-    var surface: *sdl.SDL_Surface = undefined;
     var renderer: *sdl.SDL_Renderer = undefined;
 
     window = sdl.SDL_CreateWindow("my window", 100, 100, 640, 480, sdl.SDL_WINDOW_SHOWN | sdl.SDL_WINDOW_RESIZABLE).?;
     renderer = sdl.SDL_CreateRenderer(window, -1, sdl.SDL_RENDERER_ACCELERATED).?;
-    surface = if (TARGET_OS == .windows) undefined else try create_surface_from_file(&arena, "font_white.png");
+
 
     var app: Application = undefined;
     app.graphics_ctx.window = windowing.create_window("algo");

@@ -28,6 +28,9 @@ pub fn build(b: *std.Build) void {
         exe.linkSystemLibrary("SDL2");
         exe.addLibraryPath(b.path("lib"));
         exe.linkSystemLibrary("vulkan-1");
+    } else {
+        exe.linkSystemLibrary("SDL2");
+        exe.linkSystemLibrary("vulkan");
     }
 
     exe.addIncludePath(b.path("include"));

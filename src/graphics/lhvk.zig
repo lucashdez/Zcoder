@@ -1,6 +1,6 @@
 const std = @import("std");
-const vk = if (@import("builtin").os.tag == .windows) @import("vk_api.zig").vk else @import("vk_api.zig");
-const Window = @import("win32.zig").Window;
+const vk = @import("vk_api.zig").vk;
+const Window = if (@import("builtin").os.tag == .windows) @import("win32.zig").Window else @import("wayland.zig").Window;
 const lhmem = @import("../memory/memory.zig");
 const Arena = lhmem.Arena;
 const assert = std.debug.assert;
@@ -211,7 +211,7 @@ fn is_device_suitable(device: vk.VkPhysicalDevice, surface: vk.VkSurfaceKHR, rat
 
     vk.vkGetPhysicalDeviceProperties(device, &device_properties);
     vk.vkGetPhysicalDeviceFeatures(device, &device_features);
-    const families_found: QueueFamilyIndices = find_queue_families(ctx, device) catch return undefined;
+    const families_found: ?QueueFamilyIndices = find_queue_families(ctx, device) catch return null;
     var scratch = lhmem.scratch_block();
     const swapchain_support = query_swapchain_support(&scratch, device, surface);
     const supports_swapchain: bool = (swapchain_support.presentModes.len != 0) and (swapchain_support.formats.len != 0);
@@ -224,7 +224,7 @@ fn is_device_suitable(device: vk.VkPhysicalDevice, surface: vk.VkSurfaceKHR, rat
     }
     if (rates.* != 0
         and device_features.geometryShader != 0
-        and families_found.graphics_family != undefined)
+        and families_found != null)
     {
         u.trace("{s} found.", .{device_properties.deviceName});
         return supports_swapchain;
@@ -442,7 +442,7 @@ fn create_image_views(ctx: *LhvkGraphicsCtx)
 }
 
 fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
-
+    _ = ctx;
 }
 
 pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void
