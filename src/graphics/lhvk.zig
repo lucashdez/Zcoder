@@ -26,6 +26,8 @@ pub const VkApp = struct {
     format: vk.VkFormat,
     extent: vk.VkExtent2D,
     image_views: []vk.VkImageView,
+    render_pass: vk.VkRenderPass,
+    pipeline_layout: vk.VkPipelineLayout,
 };
 
 pub const VkAppData = struct {
@@ -441,11 +443,188 @@ fn create_image_views(ctx: *LhvkGraphicsCtx)
     }
 }
 
-fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
-    _ = ctx;
+fn read_file(arena: *lhmem.Arena, file_name: []const u8) ![]const u8 {
+    var file = try std.fs.cwd().openFile(file_name, .{});
+    const metadata = try file.metadata();
+    const size = metadata.size();
+    const buff: []u8 = arena.push_array(u8, size)[0..size];
+    const reader = file.reader();
+    const ret = try reader.readUntilDelimiterOrEof(@constCast(buff), 0);
+    return ret.?;
 }
 
-pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void
+fn create_shader_module(device: vk.VkDevice, code: []const u8) ?vk.VkShaderModule {
+    var create_info: vk.VkShaderModuleCreateInfo = .{
+        .sType = vk.VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = code.len,
+        .pCode = @alignCast(@ptrCast(code.ptr)),
+    };
+    var shader_module: vk.VkShaderModule = undefined;
+    if (vk.vkCreateShaderModule(device, &create_info, null, &shader_module) != vk.VK_SUCCESS) return null;
+    return shader_module;
+}
+
+fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
+    const app: *VkApp = &ctx.vk_app;
+    const appdata: *VkAppData = &ctx.vk_appdata;
+    const vert_bytes = try read_file(&appdata.arena, "../../src/shaders/vert.spv");
+    const frag_bytes = try read_file(&appdata.arena, "../../src/shaders/frag.spv");
+
+    const vert_shader = create_shader_module(app.device, vert_bytes).?;
+    const frag_shader = create_shader_module(app.device, frag_bytes).?;
+
+    var vert_shader_stage_create_info: vk.VkPipelineShaderStageCreateInfo  = undefined;
+    vert_shader_stage_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vert_shader_stage_create_info.stage = vk.VK_SHADER_STAGE_VERTEX_BIT;
+    vert_shader_stage_create_info.module = vert_shader;
+    vert_shader_stage_create_info.pName = "main";
+
+    var frag_shader_stage_create_info: vk.VkPipelineShaderStageCreateInfo  = undefined;
+    frag_shader_stage_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    frag_shader_stage_create_info.stage = vk.VK_SHADER_STAGE_FRAGMENT_BIT;
+    frag_shader_stage_create_info.module = frag_shader;
+    frag_shader_stage_create_info.pName = "main";
+
+    const stage_infos: [2]vk.VkPipelineShaderStageCreateInfo = .{vert_shader_stage_create_info, frag_shader_stage_create_info};
+
+    var vertex_input_info: vk.VkPipelineVertexInputStateCreateInfo = undefined;
+    vertex_input_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+    vertex_input_info.vertexBindingDescriptionCount = 0;
+    vertex_input_info.pVertexBindingDescriptions = null;
+    vertex_input_info.vertexAttributeDescriptionCount = 0;
+    vertex_input_info.pVertexAttributeDescriptions = null;
+
+    var input_assembly_create_info: vk.VkPipelineInputAssemblyStateCreateInfo = undefined;
+    input_assembly_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+    input_assembly_create_info.topology = vk.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    input_assembly_create_info.primitiveRestartEnable = vk.VK_FALSE;
+
+
+    var viewport: vk.VkViewport = undefined;
+    viewport.x = 0.0;
+    viewport.y = 0.0;
+    viewport.width = @as(f32, @floatFromInt(app.extent.width));
+    viewport.height = @as(f32, @floatFromInt(app.extent.height));
+    viewport.minDepth = 0.0;
+    viewport.maxDepth = 1.0;
+
+    var scissor: vk.VkRect2D = undefined;
+    var offset: vk.VkOffset2D = undefined;
+    offset.x = 0;
+    offset.y = 0;
+    scissor.offset =  offset;
+    scissor.extent = app.extent;
+
+    var viewport_state_create_info: vk.VkPipelineViewportStateCreateInfo = undefined;
+    viewport_state_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+    viewport_state_create_info.viewportCount = 1;
+    viewport_state_create_info.pViewports = &viewport;
+    viewport_state_create_info.scissorCount = 1;
+    viewport_state_create_info.pScissors = &scissor;
+
+    var rasterizer : vk.VkPipelineRasterizationStateCreateInfo = undefined;
+    rasterizer.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+    rasterizer.depthClampEnable = vk.VK_FALSE;
+    rasterizer.rasterizerDiscardEnable = vk.VK_FALSE;
+    rasterizer.polygonMode = vk.VK_POLYGON_MODE_FILL;
+    rasterizer.lineWidth = 1.0;
+    rasterizer.cullMode = vk.VK_CULL_MODE_BACK_BIT;
+    rasterizer.frontFace = vk.VK_FRONT_FACE_CLOCKWISE;
+    rasterizer.depthBiasEnable = vk.VK_FALSE;
+    rasterizer.depthBiasConstantFactor = 0.0;
+    rasterizer.depthBiasClamp = 0.0;
+    rasterizer.depthBiasSlopeFactor = 0.0;
+
+    var multisampling: vk.VkPipelineMultisampleStateCreateInfo = undefined;
+    multisampling.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+    multisampling.sampleShadingEnable = vk.VK_FALSE;
+    multisampling.rasterizationSamples = vk.VK_SAMPLE_COUNT_1_BIT;
+    multisampling.minSampleShading = 1.0; // Optional
+    multisampling.pSampleMask = null; // Optional
+    multisampling.alphaToCoverageEnable = vk.VK_FALSE; // Optional
+    multisampling.alphaToOneEnable = vk.VK_FALSE; // Optional
+
+     var color_blend_attachment: vk.VkPipelineColorBlendAttachmentState = undefined;
+    color_blend_attachment.colorWriteMask = vk.VK_COLOR_COMPONENT_R_BIT | vk.VK_COLOR_COMPONENT_G_BIT | vk.VK_COLOR_COMPONENT_B_BIT | vk.VK_COLOR_COMPONENT_A_BIT;
+    color_blend_attachment.blendEnable = vk.VK_FALSE;
+    color_blend_attachment.srcColorBlendFactor = vk.VK_BLEND_FACTOR_ONE; // Optional
+    color_blend_attachment.dstColorBlendFactor = vk.VK_BLEND_FACTOR_ZERO; // Optional
+    color_blend_attachment.colorBlendOp = vk.VK_BLEND_OP_ADD; // Optional
+    color_blend_attachment.srcAlphaBlendFactor = vk.VK_BLEND_FACTOR_ONE; // Optional
+    color_blend_attachment.dstAlphaBlendFactor = vk.VK_BLEND_FACTOR_ZERO; // Optional
+    color_blend_attachment.alphaBlendOp = vk.VK_BLEND_OP_ADD; // Optional
+
+    var color_blending: vk.VkPipelineColorBlendStateCreateInfo = undefined;
+    color_blending.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+    color_blending.logicOpEnable = vk.VK_FALSE;
+    color_blending.logicOp = vk.VK_LOGIC_OP_COPY; // Optional
+    color_blending.attachmentCount = 1;
+    color_blending.pAttachments = &color_blend_attachment;
+    color_blending.blendConstants[0] = 0.0; // Optional
+    color_blending.blendConstants[1] = 0.0; // Optional
+    color_blending.blendConstants[2] = 0.0; // Optional
+    color_blending.blendConstants[3] = 0.0; // Optional
+
+    var pipeline_layout_create_info: vk.VkPipelineLayoutCreateInfo = undefined;
+    pipeline_layout_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+    pipeline_layout_create_info.pNext = null;
+    pipeline_layout_create_info.flags = 0;
+    pipeline_layout_create_info.setLayoutCount = 0;
+    pipeline_layout_create_info.pSetLayouts = null;
+    pipeline_layout_create_info.pushConstantRangeCount = 0;
+    pipeline_layout_create_info.pPushConstantRanges = null;
+
+    if(vk.vkCreatePipelineLayout(app.device, &pipeline_layout_create_info, null, &app.pipeline_layout) != vk.VK_SUCCESS)
+    {
+        u.err("SOMETHING HERE IN THE CREATING OF LAYOUT", .{});
+    }
+
+    var pipeline_info: vk.VkGraphicsPipelineCreateInfo = undefined;
+    pipeline_info.sType = vk.VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+    pipeline_info.stageCount = 2;
+    pipeline_info.pStages = &stage_infos;
+
+
+    vk.vkDestroyShaderModule(app.device, vert_shader, null);
+    vk.vkDestroyShaderModule(app.device, frag_shader, null);
+
+}
+
+fn create_render_pass(ctx: *LhvkGraphicsCtx)
+!void
+{
+    const app: *VkApp = &ctx.vk_app;
+    var attachment_description: vk.VkAttachmentDescription = undefined;
+    attachment_description.format = app.format;
+    attachment_description.samples = vk.VK_SAMPLE_COUNT_1_BIT;
+    attachment_description.loadOp = vk.VK_ATTACHMENT_LOAD_OP_CLEAR;
+    attachment_description.storeOp = vk.VK_ATTACHMENT_STORE_OP_STORE;
+    attachment_description.stencilLoadOp = vk.VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    attachment_description.stencilStoreOp = vk.VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    attachment_description.initialLayout = vk.VK_IMAGE_LAYOUT_UNDEFINED;
+    attachment_description.finalLayout = vk.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+
+    var color_attachment_ref: vk.VkAttachmentReference = undefined;
+    color_attachment_ref.attachment = 0;
+    color_attachment_ref.layout = vk.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+
+    var subpass: vk.VkSubpassDescription = undefined;
+    subpass.pipelineBindPoint = vk.VK_PIPELINE_BIND_POINT_GRAPHICS;
+    subpass.colorAttachmentCount = 1;
+    subpass.pColorAttachments = &color_attachment_ref;
+
+    var renderpass_info: vk.VkRenderPassCreateInfo = undefined;
+    renderpass_info.sType = vk.VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+    renderpass_info.attachmentCount = 1;
+    renderpass_info.pAttachments = &attachment_description;
+    renderpass_info.subpassCount = 1;
+    renderpass_info.pSubpasses = &subpass;
+
+    if (vk.vkCreateRenderPass(app.device, &renderpass_info, null, &app.render_pass) != vk.VK_SUCCESS) return error.CANNOTCREATERENDERPASS;
+}
+
+pub fn init_vulkan(ctx: *LhvkGraphicsCtx)
+!void
 {
     _ = try create_instance(&ctx.vk_app, &ctx.vk_appdata);
     _ = setup_debug_messenger(&ctx.vk_app);
@@ -455,17 +634,21 @@ pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void
     create_logical_device(ctx);
     try create_swapchain(ctx);
     try create_image_views(ctx);
+    try create_render_pass(ctx);
     try create_graphics_pipeline(ctx);
 }
 
-fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp) void
+fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp)
+void
 {
     if (@import("builtin").os.tag == .windows)
     {
+        u.warn("ALIGNMENT: hwnd {}\n\thinstance: {}\n\nhwnd {}|| {d:.10} \nhinstance {} || {d:.10}",
+        .{@alignOf(*anyopaque), @alignOf(vk.HINSTANCE), @intFromPtr(ctx.window.instance.?), @as(f32, @floatFromInt(@intFromPtr(ctx.window.instance.?))) / 8, @intFromPtr(ctx.window.surface.?), @as(f32,@floatFromInt(@intFromPtr(ctx.window.surface.?))) / 8});
         var create_info: vk.VkWin32SurfaceCreateInfoKHR = .{
             .sType = vk.VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
-            .hwnd = @ptrCast(@alignCast(ctx.window.surface.?)),
-            .hinstance = @ptrCast(@alignCast(ctx.window.instance.?)),
+            .hwnd = @alignCast(@ptrCast(ctx.window.surface.?)),
+            .hinstance = @alignCast(@ptrCast(ctx.window.instance.?)),
         };
         const result = vk.vkCreateWin32SurfaceKHR(app.instance, &create_info, null, &app.surface);
         assert(result == vk.VK_SUCCESS);

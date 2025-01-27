@@ -28,8 +28,8 @@ fn customproc(
 
 pub const Window = struct {
     handle: ?*sdl.SDL_Window,
-    instance: ?*anyopaque,
-    surface: ?*anyopaque,
+    instance: ?*anyopaque align(8),
+    surface:  ?*anyopaque align(8),
     display: ?*anyopaque,
     width: u32,
     height: u32,
@@ -54,7 +54,7 @@ pub fn create_window(comptime name: []const u8) Window {
         .DLGFRAME = 1,
         .BORDER = 1,
     };
-    const hwnd: ?raw.HWND = raw.CreateWindowExW(
+    const hwnd: ?raw.HWND align(8) = @alignCast(raw.CreateWindowExW(
         .{},
         class_name,
         W("Learn to program"),
@@ -63,7 +63,7 @@ pub fn create_window(comptime name: []const u8) Window {
         null,
         null,
         hinstance,
-        null);
+        null));
     assert(hwnd != null);
     _ = raw.ShowWindow(hwnd.?, raw.SW_SHOW);
     return Window {
