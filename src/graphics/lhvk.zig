@@ -7,7 +7,6 @@ const assert = std.debug.assert;
 const u = @import("lhvk_utils.zig");
 const la = @import("../lin_alg/la.zig");
 
-
 pub const LhvkGraphicsCtx = struct {
     window: Window,
     vk_app: VkApp,
@@ -71,7 +70,7 @@ fn debug_callback(message_severity: c_uint, message_type: u32, pCallbackData: [*
 
 fn check_validation_layers() bool {
     std.debug.print("Checking validation layers\n", .{});
-    var arena: Arena = lhmem.make_arena((1<<10) * 16);
+    var arena: Arena = lhmem.make_arena((1 << 10) * 16);
     //defer arena.release();
 
     std.debug.print("Arena done...\n", .{});
@@ -157,7 +156,7 @@ fn create_instance(app: *VkApp, app_data: ?*VkAppData) VulkanInitError!void {
     if (check_validation_layers()) {
         const validation = app.arena.push_string("VK_LAYER_KHRONOS_validation");
         const enumeration = app.arena.push_string("VK_KHR_portability_enumeration");
-        const layers: [2][*c]const u8 = .{validation.ptr, enumeration.ptr};
+        const layers: [2][*c]const u8 = .{ validation.ptr, enumeration.ptr };
         create_info.enabledLayerCount = 2;
         create_info.ppEnabledLayerNames = &layers;
         populate_debug_info(&debug_create_info);
@@ -206,8 +205,7 @@ fn find_queue_families(ctx: *LhvkGraphicsCtx, device: vk.VkPhysicalDevice) !Queu
     return indices;
 }
 
-fn is_device_suitable(device: vk.VkPhysicalDevice, surface: vk.VkSurfaceKHR, rates: *u8, ctx: *LhvkGraphicsCtx) bool
-{
+fn is_device_suitable(device: vk.VkPhysicalDevice, surface: vk.VkSurfaceKHR, rates: *u8, ctx: *LhvkGraphicsCtx) bool {
     var device_properties: vk.VkPhysicalDeviceProperties = std.mem.zeroes(vk.VkPhysicalDeviceProperties);
     var device_features: vk.VkPhysicalDeviceFeatures = std.mem.zeroes(vk.VkPhysicalDeviceFeatures);
 
@@ -218,16 +216,18 @@ fn is_device_suitable(device: vk.VkPhysicalDevice, surface: vk.VkSurfaceKHR, rat
     const swapchain_support = query_swapchain_support(&scratch, device, surface);
     const supports_swapchain: bool = (swapchain_support.presentModes.len != 0) and (swapchain_support.formats.len != 0);
 
-    switch (device_properties.deviceType)
-    {
-        vk.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU => {rates .* = 10;},
-        vk.VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU => {rates.* = 5;},
-        else => {rates.* = 0;}
+    switch (device_properties.deviceType) {
+        vk.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU => {
+            rates.* = 10;
+        },
+        vk.VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU => {
+            rates.* = 5;
+        },
+        else => {
+            rates.* = 0;
+        },
     }
-    if (rates.* != 0
-        and device_features.geometryShader != 0
-        and families_found != null)
-    {
+    if (rates.* != 0 and device_features.geometryShader != 0 and families_found != null) {
         u.trace("{s} found.", .{device_properties.deviceName});
         return supports_swapchain;
     }
@@ -251,16 +251,13 @@ fn pick_physical_device(ctx: *LhvkGraphicsCtx) !void {
     const physical_devices: [*]vk.VkPhysicalDevice = @ptrCast(@alignCast(physical_devices_bytes));
     _ = vk.vkEnumeratePhysicalDevices(app.instance, &device_count, physical_devices);
     const dview: []vk.VkPhysicalDevice = physical_devices[0..device_count];
-    for (dview, 0..device_count) |device, i|
-    {
+    for (dview, 0..device_count) |device, i| {
         if (!is_device_suitable(device, app.surface, &rates[i], ctx)) rates[i] = 0;
     }
     var max: i32 = 0;
     var i: usize = 0;
-    for(0..rates.len) |idx|
-    {
-        if (rates[idx] > max)
-        {
+    for (0..rates.len) |idx| {
+        if (rates[idx] > max) {
             max = rates[idx];
             i = idx;
         }
@@ -329,16 +326,14 @@ fn query_swapchain_support(arena: *Arena, device: vk.VkPhysicalDevice, surface: 
 
     var format_count: u32 = 0;
     _ = vk.vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, null);
-    if (format_count != 0)
-    {
+    if (format_count != 0) {
         details.formats = arena.push_array(vk.VkSurfaceFormatKHR, format_count)[0..format_count];
         _ = vk.vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, details.formats.ptr);
     }
 
     var present_mode_count: u32 = 0;
     _ = vk.vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, null);
-    if (present_mode_count != 0)
-    {
+    if (present_mode_count != 0) {
         details.presentModes = arena.push_array(vk.VkPresentModeKHR, present_mode_count)[0..present_mode_count];
         _ = vk.vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, details.presentModes.ptr);
     }
@@ -347,8 +342,7 @@ fn query_swapchain_support(arena: *Arena, device: vk.VkPhysicalDevice, surface: 
 }
 
 fn choose_surface_format(available_formats: []vk.VkSurfaceFormatKHR) vk.VkSurfaceFormatKHR {
-    for (available_formats) |format|
-    {
+    for (available_formats) |format| {
         if (format.format == vk.VK_FORMAT_R8G8B8A8_SRGB and format.colorSpace == vk.VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) return format;
     }
     return available_formats[0];
@@ -364,9 +358,7 @@ fn choose_swap_extent(window: Window, capabilities: vk.VkSurfaceCapabilitiesKHR)
     return actual_extent;
 }
 
-fn create_swapchain(ctx: *LhvkGraphicsCtx)
-!void
-{
+fn create_swapchain(ctx: *LhvkGraphicsCtx) !void {
     var app: *VkApp = &ctx.vk_app;
     const app_data: *VkAppData = &ctx.vk_appdata;
     var arena = lhmem.scratch_block();
@@ -389,9 +381,8 @@ fn create_swapchain(ctx: *LhvkGraphicsCtx)
     create_info.imageArrayLayers = 1;
     create_info.imageUsage = vk.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     const indices = try find_queue_families(ctx, app_data.physical_device);
-    const real_indices: [2]u32 = .{indices.graphics_family.?, indices.present_family.?};
-    if (indices.graphics_family.? != indices.present_family.?)
-    {
+    const real_indices: [2]u32 = .{ indices.graphics_family.?, indices.present_family.? };
+    if (indices.graphics_family.? != indices.present_family.?) {
         create_info.imageSharingMode = vk.VK_SHARING_MODE_CONCURRENT;
         create_info.queueFamilyIndexCount = 2;
         create_info.pQueueFamilyIndices = &real_indices;
@@ -417,13 +408,10 @@ fn create_swapchain(ctx: *LhvkGraphicsCtx)
     app.extent = extent;
 }
 
-fn create_image_views(ctx: *LhvkGraphicsCtx)
-!void
-{
+fn create_image_views(ctx: *LhvkGraphicsCtx) !void {
     const app: *VkApp = &ctx.vk_app;
     app.image_views = app.arena.push_array(vk.VkImageView, app.swapchain_images.len)[0..app.swapchain_images.len];
-    for (app.image_views, 0..app.swapchain_images.len) |view, i|
-    {
+    for (app.image_views, 0..app.swapchain_images.len) |view, i| {
         var info: vk.VkImageViewCreateInfo = std.mem.zeroes(vk.VkImageViewCreateInfo);
         info.sType = vk.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         info.image = app.swapchain_images[i];
@@ -473,19 +461,19 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     const vert_shader = create_shader_module(app.device, vert_bytes).?;
     const frag_shader = create_shader_module(app.device, frag_bytes).?;
 
-    var vert_shader_stage_create_info: vk.VkPipelineShaderStageCreateInfo  = undefined;
+    var vert_shader_stage_create_info: vk.VkPipelineShaderStageCreateInfo = undefined;
     vert_shader_stage_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vert_shader_stage_create_info.stage = vk.VK_SHADER_STAGE_VERTEX_BIT;
     vert_shader_stage_create_info.module = vert_shader;
     vert_shader_stage_create_info.pName = "main";
 
-    var frag_shader_stage_create_info: vk.VkPipelineShaderStageCreateInfo  = undefined;
+    var frag_shader_stage_create_info: vk.VkPipelineShaderStageCreateInfo = undefined;
     frag_shader_stage_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     frag_shader_stage_create_info.stage = vk.VK_SHADER_STAGE_FRAGMENT_BIT;
     frag_shader_stage_create_info.module = frag_shader;
     frag_shader_stage_create_info.pName = "main";
 
-    const stage_infos: [2]vk.VkPipelineShaderStageCreateInfo = .{vert_shader_stage_create_info, frag_shader_stage_create_info};
+    const stage_infos: [2]vk.VkPipelineShaderStageCreateInfo = .{ vert_shader_stage_create_info, frag_shader_stage_create_info };
 
     var vertex_input_info: vk.VkPipelineVertexInputStateCreateInfo = undefined;
     vertex_input_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
@@ -499,7 +487,6 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     input_assembly_create_info.topology = vk.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     input_assembly_create_info.primitiveRestartEnable = vk.VK_FALSE;
 
-
     var viewport: vk.VkViewport = undefined;
     viewport.x = 0.0;
     viewport.y = 0.0;
@@ -512,7 +499,7 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     var offset: vk.VkOffset2D = undefined;
     offset.x = 0;
     offset.y = 0;
-    scissor.offset =  offset;
+    scissor.offset = offset;
     scissor.extent = app.extent;
 
     var viewport_state_create_info: vk.VkPipelineViewportStateCreateInfo = undefined;
@@ -522,7 +509,7 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     viewport_state_create_info.scissorCount = 1;
     viewport_state_create_info.pScissors = &scissor;
 
-    var rasterizer : vk.VkPipelineRasterizationStateCreateInfo = undefined;
+    var rasterizer: vk.VkPipelineRasterizationStateCreateInfo = undefined;
     rasterizer.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rasterizer.depthClampEnable = vk.VK_FALSE;
     rasterizer.rasterizerDiscardEnable = vk.VK_FALSE;
@@ -544,7 +531,7 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     multisampling.alphaToCoverageEnable = vk.VK_FALSE; // Optional
     multisampling.alphaToOneEnable = vk.VK_FALSE; // Optional
 
-     var color_blend_attachment: vk.VkPipelineColorBlendAttachmentState = undefined;
+    var color_blend_attachment: vk.VkPipelineColorBlendAttachmentState = undefined;
     color_blend_attachment.colorWriteMask = vk.VK_COLOR_COMPONENT_R_BIT | vk.VK_COLOR_COMPONENT_G_BIT | vk.VK_COLOR_COMPONENT_B_BIT | vk.VK_COLOR_COMPONENT_A_BIT;
     color_blend_attachment.blendEnable = vk.VK_FALSE;
     color_blend_attachment.srcColorBlendFactor = vk.VK_BLEND_FACTOR_ONE; // Optional
@@ -574,8 +561,7 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     pipeline_layout_create_info.pushConstantRangeCount = 0;
     pipeline_layout_create_info.pPushConstantRanges = null;
 
-    if(vk.vkCreatePipelineLayout(app.device, &pipeline_layout_create_info, null, &app.pipeline_layout) != vk.VK_SUCCESS)
-    {
+    if (vk.vkCreatePipelineLayout(app.device, &pipeline_layout_create_info, null, &app.pipeline_layout) != vk.VK_SUCCESS) {
         u.err("SOMETHING HERE IN THE CREATING OF LAYOUT", .{});
     }
 
@@ -584,15 +570,11 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     pipeline_info.stageCount = 2;
     pipeline_info.pStages = &stage_infos;
 
-
     vk.vkDestroyShaderModule(app.device, vert_shader, null);
     vk.vkDestroyShaderModule(app.device, frag_shader, null);
-
 }
 
-fn create_render_pass(ctx: *LhvkGraphicsCtx)
-!void
-{
+fn create_render_pass(ctx: *LhvkGraphicsCtx) !void {
     const app: *VkApp = &ctx.vk_app;
     var attachment_description: vk.VkAttachmentDescription = undefined;
     attachment_description.format = app.format;
@@ -623,9 +605,7 @@ fn create_render_pass(ctx: *LhvkGraphicsCtx)
     if (vk.vkCreateRenderPass(app.device, &renderpass_info, null, &app.render_pass) != vk.VK_SUCCESS) return error.CANNOTCREATERENDERPASS;
 }
 
-pub fn init_vulkan(ctx: *LhvkGraphicsCtx)
-!void
-{
+pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
     _ = try create_instance(&ctx.vk_app, &ctx.vk_appdata);
     _ = setup_debug_messenger(&ctx.vk_app);
     create_surface(ctx, &ctx.vk_app);
@@ -638,19 +618,31 @@ pub fn init_vulkan(ctx: *LhvkGraphicsCtx)
     try create_graphics_pipeline(ctx);
 }
 
-fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp)
-void
-{
-    if (@import("builtin").os.tag == .windows)
-    {
-        u.warn("ALIGNMENT: hwnd {}\n\thinstance: {}\n\nhwnd {}|| {d:.10} \nhinstance {} || {d:.10}",
-        .{@alignOf(*anyopaque), @alignOf(vk.HINSTANCE), @intFromPtr(ctx.window.instance.?), @as(f32, @floatFromInt(@intFromPtr(ctx.window.instance.?))) / 8, @intFromPtr(ctx.window.surface.?), @as(f32,@floatFromInt(@intFromPtr(ctx.window.surface.?))) / 8});
+fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp) void {
+    if (@import("builtin").os.tag == .windows) {
+        u.warn("ALIGNMENT: hwnd {}\n\thinstance: {}\n\nhwnd {}|| {d:.10} \nhinstance {} || {d:.10}", .{ @alignOf(*anyopaque), @alignOf(vk.HINSTANCE), @intFromPtr(ctx.window.instance.?), @as(f32, @floatFromInt(@intFromPtr(ctx.window.instance.?))) / 8, @intFromPtr(ctx.window.surface.?), @as(f32, @floatFromInt(@intFromPtr(ctx.window.surface.?))) / 8 });
         var create_info: vk.VkWin32SurfaceCreateInfoKHR = .{
             .sType = vk.VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,
             .hwnd = @alignCast(@ptrCast(ctx.window.surface.?)),
             .hinstance = @alignCast(@ptrCast(ctx.window.instance.?)),
         };
         const result = vk.vkCreateWin32SurfaceKHR(app.instance, &create_info, null, &app.surface);
+        assert(result == vk.VK_SUCCESS);
+    } else {
+        u.warn("ALIGNMENT: display {}\nsurface: {}\n\nhwnd {}|| {d:.10} \nhinstance {} || {d:.10}", .{
+            @alignOf(@TypeOf(ctx.window.display.?)),
+            @alignOf(@TypeOf(ctx.window.surface.?)),
+            @intFromPtr(ctx.window.display.?),
+            @as(f32, @floatFromInt(@intFromPtr(ctx.window.display.?))) / 8,
+            @intFromPtr(ctx.window.surface.?),
+            @as(f32, @floatFromInt(@intFromPtr(ctx.window.surface.?))) / 8
+        });
+        var create_info: vk.VkWaylandSurfaceCreateInfoKHR = .{
+            .sType = vk.VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
+            .display = @alignCast(@ptrCast(ctx.window.surface.?)),
+            .surface = @alignCast(@ptrCast(ctx.window.display.?)),
+        };
+        const result = vk.vkCreateWaylandSurfaceKHR(app.instance, &create_info, null, &app.surface);
         assert(result == vk.VK_SUCCESS);
     }
 }

@@ -23,17 +23,18 @@ pub fn build(b: *std.Build) void {
     });
 
     exe.linkLibC();
+    exe.addLibraryPath(b.path("lib"));
+    exe.addIncludePath(b.path("include"));
     if (@import("builtin").os.tag == .windows) {
         exe.addLibraryPath(b.path("lib/x64"));
         exe.linkSystemLibrary("SDL2");
-        exe.addLibraryPath(b.path("lib"));
         exe.linkSystemLibrary("vulkan-1");
     } else {
         exe.linkSystemLibrary("SDL2");
         exe.linkSystemLibrary("vulkan");
     }
 
-    exe.addIncludePath(b.path("include"));
+
 
     // This declares intent for the executable to be installed into the
     // standard location when the user invokes the "install" step (the default
