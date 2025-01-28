@@ -32,6 +32,7 @@ pub fn build(b: *std.Build) void {
     } else {
         exe.linkSystemLibrary("SDL2");
         exe.linkSystemLibrary("vulkan");
+        exe.linkSystemLibrary("wayland-client");
     }
 
 

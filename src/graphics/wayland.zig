@@ -34,7 +34,7 @@ pub const WaylandProps = struct {
     display: raw.wl_display,
     surface: raw.wl_surface,
     registry: raw.wl_registry,
-    listener: raw.wl_registry_listener,
+    listener: raw.wl_listener,
     //global: ?*const fn (?*anyopaque, ?*struct_wl_registry, u32, [*c]const u8, u32) callconv(.C) void = @import("std").mem.zeroes(?*const fn (?*anyopaque, ?*struct_wl_registry, u32, [*c]const u8, u32) callconv(.C) void),
     //global_remove: ?*const fn (?*anyopaque, ?*struct_wl_registry, u32) callconv(.C) void = @import("std").mem.zeroes(?*const fn (?*anyopaque, ?*struct_wl_registry, u32) callconv(.C) void),
 };
@@ -49,9 +49,9 @@ pub const Window = struct {
 
 pub fn create_window(name: []const u8) Window {
      _ = name;
-    const display: ?raw.wl_display = raw.wl_display_connect(null);
+    const display: ?u32 = raw.wl_display_connect(null);
     assert(display != null);
-    const registry: ?raw.wl_registry = raw.wl_display_get_registry(display.?);
+    const registry: ?u32 = raw.wl_display_get_registry(display.?);
     assert(registry != null);
     const listener: raw.wl_registry_listener = .{
         .global = registryGlobal,
