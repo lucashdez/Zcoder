@@ -27,6 +27,10 @@ pub const VkApp = struct {
     image_views: []vk.VkImageView,
     render_pass: vk.VkRenderPass,
     pipeline_layout: vk.VkPipelineLayout,
+    graphics_pipeline: vk.VkPipeline,
+    swapchain_framebuffers: []vk.VkFramebuffer,
+    command_pool: vk.VkCommandPool,
+    command_buffer: vk.VkCommandBuffer,
 };
 
 pub const VkAppData = struct {
@@ -40,6 +44,7 @@ pub const VulkanInitError = error{
 };
 
 fn debug_callback(message_severity: c_uint, message_type: u32, pCallbackData: [*c]const vk.VkDebugUtilsMessengerCallbackDataEXT, pUserData: ?*anyopaque) callconv(.C) u32 {
+    _ = message_type;
     switch (message_severity) {
         vk.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT => {
             const len = std.mem.len(pCallbackData.*.pMessage);
@@ -53,17 +58,11 @@ fn debug_callback(message_severity: c_uint, message_type: u32, pCallbackData: [*
             const len = std.mem.len(pCallbackData.*.pMessage);
             u.trace("{s}", .{pCallbackData.*.pMessage[0..len]});
         },
-        vk.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT => {
+        else => {
             const len = std.mem.len(pCallbackData.*.pMessage);
             u.trace("{s}", .{pCallbackData.*.pMessage[0..len]});
         },
-        else => {
-            u.trace("A", .{});
-        },
     }
-    const len = std.mem.len(pCallbackData.*.pMessage);
-    u.trace("{s}", .{pCallbackData.*.pMessage[0..len]});
-    _ = message_type;
     if (pUserData == null) {}
     return 0;
 }
@@ -102,8 +101,8 @@ fn check_validation_layers() bool {
 fn populate_debug_info(dci: *vk.VkDebugUtilsMessengerCreateInfoEXT) void {
     dci.sType = vk.VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
     dci.pNext = null;
-    dci.messageSeverity = vk.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | vk.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | vk.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | vk.VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT;
-    dci.messageType = vk.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | vk.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | vk.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    dci.messageSeverity = vk.VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | vk.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT | vk.VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT | vk.VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT | vk.VK_DEBUG_UTILS_MESSAGE_SEVERITY_FLAG_BITS_MAX_ENUM_EXT;
+    dci.messageType = vk.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT | vk.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT | vk.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT | vk.VK_DEBUG_UTILS_MESSAGE_TYPE_DEVICE_ADDRESS_BINDING_BIT_EXT | vk.VK_DEBUG_UTILS_MESSAGE_TYPE_FLAG_BITS_MAX_ENUM_EXT;
     dci.pfnUserCallback = &debug_callback;
     dci.pUserData = null;
 }
@@ -432,13 +431,20 @@ fn create_image_views(ctx: *LhvkGraphicsCtx) !void {
 }
 
 fn read_file(arena: *lhmem.Arena, file_name: []const u8) ![]const u8 {
-    var file = try std.fs.cwd().openFile(file_name, .{});
+    var file = std.fs.cwd().openFile(file_name, .{}) catch {
+        var arena_int = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena_int.deinit();
+        const alloc = arena_int.allocator();
+        const dir = try std.fs.cwd().realpathAlloc(alloc, ".");
+        u.err("File not Found at: {s}{s}", .{dir,file_name});
+        return error.FileNotFound;
+    };
     const metadata = try file.metadata();
     const size = metadata.size();
     const buff: []u8 = arena.push_array(u8, size)[0..size];
     const reader = file.reader();
-    const ret = try reader.readUntilDelimiterOrEof(@constCast(buff), 0);
-    return ret.?;
+    try reader.readNoEof(@constCast(buff));
+    return buff;
 }
 
 fn create_shader_module(device: vk.VkDevice, code: []const u8) ?vk.VkShaderModule {
@@ -455,19 +461,19 @@ fn create_shader_module(device: vk.VkDevice, code: []const u8) ?vk.VkShaderModul
 fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     const app: *VkApp = &ctx.vk_app;
     const appdata: *VkAppData = &ctx.vk_appdata;
-    const vert_bytes = try read_file(&appdata.arena, "../../src/shaders/vert.spv");
-    const frag_bytes = try read_file(&appdata.arena, "../../src/shaders/frag.spv");
+    const vert_bytes = try read_file(&appdata.arena, "src/shaders/vert.spv");
+    const frag_bytes = try read_file(&appdata.arena, "src/shaders/frag.spv");
 
     const vert_shader = create_shader_module(app.device, vert_bytes).?;
     const frag_shader = create_shader_module(app.device, frag_bytes).?;
 
-    var vert_shader_stage_create_info: vk.VkPipelineShaderStageCreateInfo = undefined;
+    var vert_shader_stage_create_info: vk.VkPipelineShaderStageCreateInfo = std.mem.zeroes(vk.VkPipelineShaderStageCreateInfo);
     vert_shader_stage_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vert_shader_stage_create_info.stage = vk.VK_SHADER_STAGE_VERTEX_BIT;
     vert_shader_stage_create_info.module = vert_shader;
     vert_shader_stage_create_info.pName = "main";
 
-    var frag_shader_stage_create_info: vk.VkPipelineShaderStageCreateInfo = undefined;
+    var frag_shader_stage_create_info: vk.VkPipelineShaderStageCreateInfo = std.mem.zeroes(vk.VkPipelineShaderStageCreateInfo);
     frag_shader_stage_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     frag_shader_stage_create_info.stage = vk.VK_SHADER_STAGE_FRAGMENT_BIT;
     frag_shader_stage_create_info.module = frag_shader;
@@ -475,19 +481,19 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
 
     const stage_infos: [2]vk.VkPipelineShaderStageCreateInfo = .{ vert_shader_stage_create_info, frag_shader_stage_create_info };
 
-    var vertex_input_info: vk.VkPipelineVertexInputStateCreateInfo = undefined;
+    var vertex_input_info: vk.VkPipelineVertexInputStateCreateInfo = std.mem.zeroes(vk.VkPipelineVertexInputStateCreateInfo);
     vertex_input_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     vertex_input_info.vertexBindingDescriptionCount = 0;
     vertex_input_info.pVertexBindingDescriptions = null;
     vertex_input_info.vertexAttributeDescriptionCount = 0;
     vertex_input_info.pVertexAttributeDescriptions = null;
 
-    var input_assembly_create_info: vk.VkPipelineInputAssemblyStateCreateInfo = undefined;
+    var input_assembly_create_info: vk.VkPipelineInputAssemblyStateCreateInfo = std.mem.zeroes(vk.VkPipelineInputAssemblyStateCreateInfo);
     input_assembly_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     input_assembly_create_info.topology = vk.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     input_assembly_create_info.primitiveRestartEnable = vk.VK_FALSE;
 
-    var viewport: vk.VkViewport = undefined;
+    var viewport: vk.VkViewport = std.mem.zeroes(vk.VkViewport);
     viewport.x = 0.0;
     viewport.y = 0.0;
     viewport.width = @as(f32, @floatFromInt(app.extent.width));
@@ -495,21 +501,21 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     viewport.minDepth = 0.0;
     viewport.maxDepth = 1.0;
 
-    var scissor: vk.VkRect2D = undefined;
-    var offset: vk.VkOffset2D = undefined;
+    var scissor: vk.VkRect2D = std.mem.zeroes(vk.VkRect2D);
+    var offset: vk.VkOffset2D = std.mem.zeroes(vk.VkOffset2D);
     offset.x = 0;
     offset.y = 0;
     scissor.offset = offset;
     scissor.extent = app.extent;
 
-    var viewport_state_create_info: vk.VkPipelineViewportStateCreateInfo = undefined;
+    var viewport_state_create_info: vk.VkPipelineViewportStateCreateInfo = std.mem.zeroes(vk.VkPipelineViewportStateCreateInfo);
     viewport_state_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewport_state_create_info.viewportCount = 1;
     viewport_state_create_info.pViewports = &viewport;
     viewport_state_create_info.scissorCount = 1;
     viewport_state_create_info.pScissors = &scissor;
 
-    var rasterizer: vk.VkPipelineRasterizationStateCreateInfo = undefined;
+    var rasterizer: vk.VkPipelineRasterizationStateCreateInfo = std.mem.zeroes(vk.VkPipelineRasterizationStateCreateInfo);
     rasterizer.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rasterizer.depthClampEnable = vk.VK_FALSE;
     rasterizer.rasterizerDiscardEnable = vk.VK_FALSE;
@@ -522,7 +528,7 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     rasterizer.depthBiasClamp = 0.0;
     rasterizer.depthBiasSlopeFactor = 0.0;
 
-    var multisampling: vk.VkPipelineMultisampleStateCreateInfo = undefined;
+    var multisampling: vk.VkPipelineMultisampleStateCreateInfo = std.mem.zeroes(vk.VkPipelineMultisampleStateCreateInfo);
     multisampling.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = vk.VK_FALSE;
     multisampling.rasterizationSamples = vk.VK_SAMPLE_COUNT_1_BIT;
@@ -531,7 +537,7 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     multisampling.alphaToCoverageEnable = vk.VK_FALSE; // Optional
     multisampling.alphaToOneEnable = vk.VK_FALSE; // Optional
 
-    var color_blend_attachment: vk.VkPipelineColorBlendAttachmentState = undefined;
+    var color_blend_attachment: vk.VkPipelineColorBlendAttachmentState = std.mem.zeroes(vk.VkPipelineColorBlendAttachmentState);
     color_blend_attachment.colorWriteMask = vk.VK_COLOR_COMPONENT_R_BIT | vk.VK_COLOR_COMPONENT_G_BIT | vk.VK_COLOR_COMPONENT_B_BIT | vk.VK_COLOR_COMPONENT_A_BIT;
     color_blend_attachment.blendEnable = vk.VK_FALSE;
     color_blend_attachment.srcColorBlendFactor = vk.VK_BLEND_FACTOR_ONE; // Optional
@@ -541,7 +547,7 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     color_blend_attachment.dstAlphaBlendFactor = vk.VK_BLEND_FACTOR_ZERO; // Optional
     color_blend_attachment.alphaBlendOp = vk.VK_BLEND_OP_ADD; // Optional
 
-    var color_blending: vk.VkPipelineColorBlendStateCreateInfo = undefined;
+    var color_blending: vk.VkPipelineColorBlendStateCreateInfo = std.mem.zeroes(vk.VkPipelineColorBlendStateCreateInfo);
     color_blending.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     color_blending.logicOpEnable = vk.VK_FALSE;
     color_blending.logicOp = vk.VK_LOGIC_OP_COPY; // Optional
@@ -552,7 +558,7 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     color_blending.blendConstants[2] = 0.0; // Optional
     color_blending.blendConstants[3] = 0.0; // Optional
 
-    var pipeline_layout_create_info: vk.VkPipelineLayoutCreateInfo = undefined;
+    var pipeline_layout_create_info: vk.VkPipelineLayoutCreateInfo = std.mem.zeroes(vk.VkPipelineLayoutCreateInfo);
     pipeline_layout_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeline_layout_create_info.pNext = null;
     pipeline_layout_create_info.flags = 0;
@@ -565,18 +571,35 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
         u.err("SOMETHING HERE IN THE CREATING OF LAYOUT", .{});
     }
 
-    var pipeline_info: vk.VkGraphicsPipelineCreateInfo = undefined;
+    var pipeline_info: vk.VkGraphicsPipelineCreateInfo = std.mem.zeroes(vk.VkGraphicsPipelineCreateInfo);
     pipeline_info.sType = vk.VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipeline_info.stageCount = 2;
     pipeline_info.pStages = &stage_infos;
+    pipeline_info.pVertexInputState = &vertex_input_info;
+    pipeline_info.pInputAssemblyState = &input_assembly_create_info;
+    pipeline_info.pViewportState = &viewport_state_create_info;
+    pipeline_info.pRasterizationState = &rasterizer;
+    pipeline_info.pMultisampleState = &multisampling;
+    pipeline_info.pDepthStencilState = null; // Optional
+    pipeline_info.pColorBlendState = &color_blending;
+    pipeline_info.pDynamicState = null;
+    pipeline_info.layout = app.pipeline_layout;
+    pipeline_info.renderPass = app.render_pass;
+    pipeline_info.subpass = 0;
+    pipeline_info.basePipelineHandle = null; // Optional
+    pipeline_info.basePipelineIndex = -1; // Optional
+
+    if (vk.vkCreateGraphicsPipelines(app.device, null, 1, &pipeline_info, null, &app.graphics_pipeline) != vk.VK_SUCCESS) {
+        return error.CannotCreatePipeline;
+    }
 
     vk.vkDestroyShaderModule(app.device, vert_shader, null);
     vk.vkDestroyShaderModule(app.device, frag_shader, null);
 }
 
 fn create_render_pass(ctx: *LhvkGraphicsCtx) !void {
-    const app: *VkApp = &ctx.vk_app;
-    var attachment_description: vk.VkAttachmentDescription = undefined;
+    var app: *VkApp = &ctx.vk_app;
+    var attachment_description: vk.VkAttachmentDescription = std.mem.zeroes(vk.VkAttachmentDescription);
     attachment_description.format = app.format;
     attachment_description.samples = vk.VK_SAMPLE_COUNT_1_BIT;
     attachment_description.loadOp = vk.VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -586,16 +609,16 @@ fn create_render_pass(ctx: *LhvkGraphicsCtx) !void {
     attachment_description.initialLayout = vk.VK_IMAGE_LAYOUT_UNDEFINED;
     attachment_description.finalLayout = vk.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
 
-    var color_attachment_ref: vk.VkAttachmentReference = undefined;
+    var color_attachment_ref: vk.VkAttachmentReference = std.mem.zeroes(vk.VkAttachmentReference);
     color_attachment_ref.attachment = 0;
     color_attachment_ref.layout = vk.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
 
-    var subpass: vk.VkSubpassDescription = undefined;
+    var subpass: vk.VkSubpassDescription = std.mem.zeroes(vk.VkSubpassDescription);
     subpass.pipelineBindPoint = vk.VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &color_attachment_ref;
 
-    var renderpass_info: vk.VkRenderPassCreateInfo = undefined;
+    var renderpass_info: vk.VkRenderPassCreateInfo = std.mem.zeroes(vk.VkRenderPassCreateInfo);
     renderpass_info.sType = vk.VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderpass_info.attachmentCount = 1;
     renderpass_info.pAttachments = &attachment_description;
@@ -603,6 +626,61 @@ fn create_render_pass(ctx: *LhvkGraphicsCtx) !void {
     renderpass_info.pSubpasses = &subpass;
 
     if (vk.vkCreateRenderPass(app.device, &renderpass_info, null, &app.render_pass) != vk.VK_SUCCESS) return error.CANNOTCREATERENDERPASS;
+}
+
+fn create_framebuffers(ctx: *LhvkGraphicsCtx)
+void
+{
+    var app: *VkApp = &ctx.vk_app;
+    app.swapchain_framebuffers = app.arena.push_array(vk.VkFramebuffer, app.swapchain_images.len)[0..app.swapchain_images.len];
+    for (0..app.swapchain_images.len) |i|
+    {
+        const attachment: [1]vk.VkImage = .{ app.swapchain_images[i] };
+        var framebuffer_create_info: vk.VkFramebufferCreateInfo = std.mem.zeroes(vk.VkFramebufferCreateInfo);
+        framebuffer_create_info.sType = vk.VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
+        framebuffer_create_info.renderPass = app.render_pass;
+        framebuffer_create_info.attachmentCount = 1;
+        framebuffer_create_info.pAttachments = @ptrCast(&attachment);
+        framebuffer_create_info.width = app.extent.width;
+        framebuffer_create_info.height = app.extent.height;
+        framebuffer_create_info.layers = 1;
+        if (vk.vkCreateFramebuffer(app.device, &framebuffer_create_info, null, &app.swapchain_framebuffers[i]) != vk.VK_SUCCESS)
+        {
+            u.err("Couldnt create framebuffer {}", .{i});
+        }
+    }
+
+}
+
+fn create_command_pool(ctx: *LhvkGraphicsCtx)
+void
+{
+    var app = &ctx.vk_app;
+    const appdata = &ctx.vk_appdata;
+    const queue_family_indices = try find_queue_families(ctx, appdata.physical_device);
+    var pool_info: vk.VkCommandPoolCreateInfo = std.mem.zeroes(vk.VkCommandPoolCreateInfo);
+    pool_info.sType = vk.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    pool_info.flags = vk.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    pool_info.queueFamilyIndex = queue_family_indices.graphics_family.?;
+    if (vk.vkCreateCommandPool(app.device, &pool_info, null, &app.command_pool) != vk.VK_SUCCESS)
+    {
+        u.err("Couldnt create command pool", .{});
+    }
+}
+
+fn create_comand_buffer(ctx: *LhvkGraphicsCtx)
+void
+{
+    var app: *VkApp = ctx.vk_app;
+    var alloc_info : vk.VkCommandBufferAllocateInfo = std.mem.zeroes(vk.VkCommandBufferAllocateInfo);
+    alloc_info.sType = vk.VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    alloc_info.commandPool = app.command_pool;
+    alloc_info.level = vk.VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    alloc_info.commandBufferCount = 1;
+    if (vk.vkAllocateCommandBuffers(app.device, &alloc_info, &app.command_buffer) != vk.VK_SUCCESS)
+    {
+        u.err("Cannot create command buffer", .{});
+    }
 }
 
 pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
@@ -616,6 +694,8 @@ pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
     try create_image_views(ctx);
     try create_render_pass(ctx);
     try create_graphics_pipeline(ctx);
+    create_framebuffers(ctx);
+    create_command_pool(ctx);
 }
 
 fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp) void {

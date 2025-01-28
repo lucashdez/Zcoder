@@ -17,7 +17,7 @@ callconv(.C) void
 {
     _ = data;
     _ = registry;
-    _ = id;
+    _ = name;
     _ = interface;
     _ = version;
 }
@@ -26,7 +26,7 @@ fn glb_reg_remover(data: ?*anyopaque, registry: ?*raw.wl_registry, name: u32)
 callconv(.C) void {
     _ = data;
     _ = registry;
-    _ = id;
+    _ = name;
 }
 
 
@@ -55,7 +55,7 @@ pub fn create_window(name: []const u8) Window {
     assert(registry != null);
     const listener: raw.wl_registry_listener = .{
         .global = registryGlobal,
-        .global_remove = registryGlobalRemove
+        .global_remove = glb_reg_remover,
     };
     raw.wl_registry_add_listener(registry.?, &listener, null);
     raw.wl_display_roundtrip(display.?);
