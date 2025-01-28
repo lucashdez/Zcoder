@@ -11,6 +11,7 @@ pub const LhvkGraphicsCtx = struct {
     window: Window,
     vk_app: VkApp,
     vk_appdata: VkAppData,
+    current_image: u32,
 };
 
 pub const VkApp = struct {
@@ -31,6 +32,9 @@ pub const VkApp = struct {
     swapchain_framebuffers: []vk.VkFramebuffer,
     command_pool: vk.VkCommandPool,
     command_buffer: vk.VkCommandBuffer,
+    image_available_sem: vk.VkSemaphore,
+    render_finished_sem: vk.VkSemaphore,
+    in_flight_fence: vk.VkFence,
 };
 
 pub const VkAppData = struct {
@@ -155,8 +159,9 @@ fn create_instance(app: *VkApp, app_data: ?*VkAppData) VulkanInitError!void {
     if (check_validation_layers()) {
         const validation = app.arena.push_string("VK_LAYER_KHRONOS_validation");
         const enumeration = app.arena.push_string("VK_KHR_portability_enumeration");
-        const layers: [2][*c]const u8 = .{ validation.ptr, enumeration.ptr };
-        create_info.enabledLayerCount = 2;
+        const profiles = app.arena.push_string("VK_LAYER_KHRONOS_profiles");
+        const layers: [3][*c]const u8 = .{ validation.ptr, enumeration.ptr, profiles.ptr };
+        create_info.enabledLayerCount = 3;
         create_info.ppEnabledLayerNames = &layers;
         populate_debug_info(&debug_create_info);
         create_info.pNext = &debug_create_info;
@@ -668,10 +673,10 @@ void
     }
 }
 
-fn create_comand_buffer(ctx: *LhvkGraphicsCtx)
+fn create_command_buffer(ctx: *LhvkGraphicsCtx)
 void
 {
-    var app: *VkApp = ctx.vk_app;
+    var app: *VkApp = &ctx.vk_app;
     var alloc_info : vk.VkCommandBufferAllocateInfo = std.mem.zeroes(vk.VkCommandBufferAllocateInfo);
     alloc_info.sType = vk.VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     alloc_info.commandPool = app.command_pool;
@@ -683,7 +688,70 @@ void
     }
 }
 
-pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
+pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx)
+void
+{
+    const app: *VkApp = &ctx.vk_app;
+    var begin_info = std.mem.zeroes(vk.VkCommandBufferBeginInfo);
+    begin_info.sType = vk.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    begin_info.flags = 0;
+    begin_info.pInheritanceInfo = null;
+    if (vk.vkBeginCommandBuffer(app.command_buffer, &begin_info) != vk.VK_SUCCESS) u.err("Cannot record command buffer", .{});
+
+    var rp_begin_info = std.mem.zeroes(vk.VkRenderPassBeginInfo);
+    rp_begin_info.sType = vk.VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+    rp_begin_info.renderPass = app.render_pass;
+    rp_begin_info.framebuffer = app.swapchain_framebuffers[ctx.current_image];
+    var offset: vk.VkOffset2D = undefined;
+    offset.x = 0;
+    offset.y = 0;
+    rp_begin_info.renderArea.offset = offset;
+    rp_begin_info.renderArea.extent = app.extent;
+    var clear_value = std.mem.zeroes(vk.VkClearValue);
+    clear_value.color.float32[0] = 0.0;
+    clear_value.color.float32[1] = 0.0;
+    clear_value.color.float32[2] = 0.0;
+    clear_value.color.float32[3] = 0.0;
+    rp_begin_info.clearValueCount = 1;
+    rp_begin_info.pClearValues = &clear_value;
+
+    vk.vkCmdBeginRenderPass(app.command_buffer, &rp_begin_info, vk.VK_SUBPASS_CONTENTS_INLINE);
+    vk.vkCmdBindPipeline(app.command_buffer, vk.VK_PIPELINE_BIND_POINT_GRAPHICS, app.graphics_pipeline);
+
+    // DELETE LATER
+    vk.vkCmdDraw(app.command_buffer, 3, 1, 0, 0);
+}
+
+pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx)
+void
+{
+    const app: *VkApp = &ctx.vk_app;
+    vk.vkCmdEndRenderPass(app.command_buffer);
+    if (vk.vkEndCommandBuffer(app.command_buffer) != vk.VK_SUCCESS)
+    {
+        u.err("Ending command buffer not posible", .{});
+    }
+}
+
+fn create_sync_objects(ctx: *LhvkGraphicsCtx)
+void
+{
+    var app: *VkApp = &ctx.vk_app;
+    var semaphore_create_info = std.mem.zeroes(vk.VkSemaphoreCreateInfo);
+    semaphore_create_info.sType = vk.VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+    var fence_create_info = std.mem.zeroes(vk.VkFenceCreateInfo);
+    fence_create_info.sType = vk.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fence_create_info.flags = vk.VK_FENCE_CREATE_SIGNALED_BIT;
+
+    if(vk.vkCreateSemaphore(app.device, &semaphore_create_info, null, &app.image_available_sem) != vk.VK_SUCCESS) u.err("Cannot create semaphore", .{});
+    if(vk.vkCreateSemaphore(app.device, &semaphore_create_info, null, &app.render_finished_sem) != vk.VK_SUCCESS) u.err("Cannot create semaphore", .{});
+    if(vk.vkCreateFence(app.device, &fence_create_info, null, &app.in_flight_fence) != vk.VK_SUCCESS) u.err("Cannot create fence", .{});
+}
+
+pub fn init_vulkan(ctx: *LhvkGraphicsCtx)
+!void
+{
     _ = try create_instance(&ctx.vk_app, &ctx.vk_appdata);
     _ = setup_debug_messenger(&ctx.vk_app);
     create_surface(ctx, &ctx.vk_app);
@@ -696,6 +764,8 @@ pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
     try create_graphics_pipeline(ctx);
     create_framebuffers(ctx);
     create_command_pool(ctx);
+    create_command_buffer(ctx);
+    create_sync_objects(ctx);
 }
 
 fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp) void {
@@ -725,4 +795,14 @@ fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp) void {
         const result = vk.vkCreateWaylandSurfaceKHR(app.instance, &create_info, null, &app.surface);
         assert(result == vk.VK_SUCCESS);
     }
+}
+
+pub fn prepare_frame(ctx: *LhvkGraphicsCtx)
+void
+{
+    var app: *VkApp = &ctx.vk_app;
+    _ = vk.vkWaitForFences(app.device, 1, &app.in_flight_fence, vk.VK_TRUE, std.math.maxInt(u64));
+    _ = vk.vkResetFences(app.device, 1, &app.in_flight_fence);
+    _ = vk.vkAcquireNextImageKHR(app.device, app.swapchain, std.math.maxInt(u64), app.image_available_sem, null, &ctx.current_image);
+    _ = vk.vkResetCommandBuffer(app.command_buffer, 0);
 }

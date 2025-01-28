@@ -131,7 +131,6 @@ pub fn render_char(renderer: *sdl.SDL_Renderer, font: *sdl.SDL_Texture, c: u8, p
 }
 
 pub fn render_text(renderer: *sdl.SDL_Renderer, font: *sdl.SDL_Texture, text: []const u8, pos: la.Vec2f, color: u32, scale: f32) void {
-    //const len = text.len;
     var pen = pos;
     for (text) |c| {
         if (c == '\n') {
@@ -260,8 +259,12 @@ pub fn main() !void {
     var app: Application = undefined;
     app.graphics_ctx.window = windowing.create_window("algo");
     app.graphics_ctx.vk_app.arena = lhmem.make_arena((1<<10) * 24);
-    app.graphics_ctx.vk_appdata.arena = lhmem.make_arena((1<<10) * 24);
+    app.graphics_ctx.vk_appdata.arena = lhmem.make_arena((1<<10) * 100);
     try lhvk.init_vulkan(&app.graphics_ctx);
+    lhvk.prepare_frame(&app.graphics_ctx);
+    lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
+    lhvk.end_command_buffer_rendering(&app.graphics_ctx);
+
 
     var arr = std.ArrayList(u8).init(allocator);
     var buffer: Buffer = Buffer{
