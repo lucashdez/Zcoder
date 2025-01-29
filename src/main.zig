@@ -1,3 +1,4 @@
+const __DEBUG__: bool = true;
 const std = @import("std");
 const TARGET_OS = @import("builtin").os.tag;
 const sdl = @cImport({
@@ -11,7 +12,6 @@ const Arena = lhmem.Arena;
 const lhvk = @import("graphics/lhvk.zig");
 const windowing = if (@import("builtin").os.tag == .windows) @import("graphics/win32.zig") else @import("graphics/wayland.zig");
 
-
 const la = @import("lin_alg/la.zig");
 const FONT_ROWS = 7;
 const FONT_COLS = 18;
@@ -21,6 +21,7 @@ const FONT_CHAR_WIDTH = FONT_WIDTH / FONT_COLS;
 const FONT_CHAR_HEIGHT = FONT_HEIGHT / FONT_ROWS;
 
 const print = std.debug.print;
+extern fn putenv(string: [*:0]const u8) c_int;
 
 const Application = struct {
     graphics_ctx: lhvk.LhvkGraphicsCtx,
@@ -99,7 +100,9 @@ pub fn line_length(text: *const std.ArrayList(u8), line: usize) usize {
     return len;
 }
 
-pub fn render_char(renderer: *sdl.SDL_Renderer, font: *sdl.SDL_Texture, c: u8, pos: la.Vec2f, color: u32, scale: f32) void {
+pub fn render_char(renderer: *sdl.SDL_Renderer, font: *sdl.SDL_Texture, c: u8, pos: la.Vec2f, color: u32, scale: f32)
+void
+{
     if (c > 0) {
         const index = c - 32;
         const col = index % FONT_COLS;
@@ -145,8 +148,8 @@ pub fn render_text(renderer: *sdl.SDL_Renderer, font: *sdl.SDL_Texture, text: []
 
 pub fn render_cursor(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, scale: f32) void {
     const r: u8 = @intCast((color >> 16) & 0xff);
-    const g: u8 = @intCast((color >>  8) & 0xff);
-    const b: u8 = @intCast((color >>  0) & 0xff);
+    const g: u8 = @intCast((color >> 8) & 0xff);
+    const b: u8 = @intCast((color >> 0) & 0xff);
     const a: u8 = @intCast((color >> 24) & 0xff);
     _ = sdl.SDL_SetRenderDrawColor(renderer, r, g, b, a);
 
@@ -234,14 +237,25 @@ pub fn render_mark(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, scal
     }
 }
 
+
+
 pub fn main() !void {
+    if (__DEBUG__) {
+        if (TARGET_OS == .windows) {
+            _ = putenv("VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation;VK_LAYER_KHRONOS_profiles");
+        } else {
+            _ = putenv("VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation:VK_LAYER_KHRONOS_profiles");
+        }
+    }
     _ = Font;
     _ = FontAttributes;
-
 
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const allocator = std.heap.page_allocator;
     defer arena.deinit();
+
+
+
 
     if (sdl.SDL_Init(sdl.SDL_INIT_VIDEO) < 0) {
         return error.MainSDLError;
@@ -255,15 +269,11 @@ pub fn main() !void {
     window = sdl.SDL_CreateWindow("my window", 100, 100, 640, 480, sdl.SDL_WINDOW_SHOWN | sdl.SDL_WINDOW_RESIZABLE).?;
     renderer = sdl.SDL_CreateRenderer(window, -1, sdl.SDL_RENDERER_ACCELERATED).?;
 
-
     var app: Application = undefined;
     app.graphics_ctx.window = windowing.create_window("algo");
-    app.graphics_ctx.vk_app.arena = lhmem.make_arena((1<<10) * 24);
-    app.graphics_ctx.vk_appdata.arena = lhmem.make_arena((1<<10) * 100);
+    app.graphics_ctx.vk_app.arena = lhmem.make_arena((1 << 10) * 24);
+    app.graphics_ctx.vk_appdata.arena = lhmem.make_arena((1 << 10) * 100);
     try lhvk.init_vulkan(&app.graphics_ctx);
-    lhvk.prepare_frame(&app.graphics_ctx);
-    lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
-    lhvk.end_command_buffer_rendering(&app.graphics_ctx);
 
 
     var arr = std.ArrayList(u8).init(allocator);
@@ -279,6 +289,9 @@ pub fn main() !void {
     try buffer.open_or_create_file("main.c");
     var quit: bool = false;
     while (!quit) {
+        lhvk.prepare_frame(&app.graphics_ctx);
+        lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
+
         var event: sdl.SDL_Event = undefined;
         while (sdl.SDL_PollEvent(&event) > 0) {
             switch (event.type) {
@@ -359,6 +372,7 @@ pub fn main() !void {
         render_cursor(renderer, buffer, 0x0000FF000, 5);
         render_mark(renderer, buffer, 0x00009900, 5);
         sdl.SDL_RenderPresent(renderer);
+        lhvk.end_command_buffer_rendering(&app.graphics_ctx);
     }
     sdl.SDL_Quit();
     print("SE ACABO", .{});

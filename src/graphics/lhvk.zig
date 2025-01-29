@@ -20,6 +20,7 @@ pub const VkApp = struct {
     debug_messenger: vk.VkDebugUtilsMessengerEXT,
     device: vk.VkDevice,
     graphics_queue: vk.VkQueue,
+    present_queue: vk.VkQueue,
     surface: vk.VkSurfaceKHR,
     swapchain: vk.VkSwapchainKHR,
     swapchain_images: []vk.VkImage,
@@ -35,6 +36,7 @@ pub const VkApp = struct {
     image_available_sem: vk.VkSemaphore,
     render_finished_sem: vk.VkSemaphore,
     in_flight_fence: vk.VkFence,
+    max_frames_in_flight: u32,
 };
 
 pub const VkAppData = struct {
@@ -170,7 +172,7 @@ fn create_instance(app: *VkApp, app_data: ?*VkAppData) VulkanInitError!void {
         create_info.ppEnabledLayerNames = null;
     }
     // Extensions
-    var editable: [*][*c]const u8 = app.arena.push_array([*c]const u8, 3);
+    var editable: [*][*c]const u8 = app.arena.push_array([*c]const u8, 4);
     editable[0] = vk.VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
     editable[1] = vk.VK_KHR_SURFACE_EXTENSION_NAME;
     // TODO: wayland and xcb extensions
@@ -179,7 +181,8 @@ fn create_instance(app: *VkApp, app_data: ?*VkAppData) VulkanInitError!void {
     } else {
         editable[2] = vk.VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME;
     }
-    create_info.enabledExtensionCount = 3;
+    editable[3] = "VK_KHR_get_physical_device_properties2";
+    create_info.enabledExtensionCount = 4;
     create_info.ppEnabledExtensionNames = editable;
     _ = vk.vkCreateInstance(&create_info, null, @constCast(&app.*.instance));
     if (app.instance == null) {
@@ -282,14 +285,27 @@ fn create_logical_device(ctx: *LhvkGraphicsCtx) void {
     };
 
     assert(indices.graphics_family != null);
-    var queue_create_info: vk.VkDeviceQueueCreateInfo = undefined;
-    queue_create_info.sType = vk.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queue_create_info.pNext = null;
-    queue_create_info.flags = 0;
-    queue_create_info.queueFamilyIndex = indices.graphics_family.?;
-    queue_create_info.queueCount = 1;
+    assert(indices.present_family != null);
     app_data.queue_priority = 1.0;
-    queue_create_info.pQueuePriorities = &app_data.queue_priority;
+    var queue_create_infos: [2] vk.VkDeviceQueueCreateInfo = undefined;
+    { // graphics queue
+        queue_create_infos[0].sType = vk.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queue_create_infos[0].pNext = null;
+        queue_create_infos[0].flags = 0;
+        queue_create_infos[0].queueFamilyIndex = indices.graphics_family.?;
+        queue_create_infos[0].queueCount = 1;
+        queue_create_infos[0].pQueuePriorities = &app_data.queue_priority;
+    }
+
+    { // present family
+        queue_create_infos[1].sType = vk.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        queue_create_infos[1].pNext = null;
+        queue_create_infos[1].flags = 0;
+        queue_create_infos[1].queueFamilyIndex = indices.present_family.?;
+        queue_create_infos[1].queueCount = 1;
+        queue_create_infos[1].pQueuePriorities = &app_data.queue_priority;
+    }
+
 
     var device_features: vk.VkPhysicalDeviceFeatures = undefined;
     vk.vkGetPhysicalDeviceFeatures(app_data.physical_device, &device_features);
@@ -298,14 +314,15 @@ fn create_logical_device(ctx: *LhvkGraphicsCtx) void {
     create_info.sType = vk.VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     create_info.pNext = null;
     create_info.flags = 0;
-    create_info.pQueueCreateInfos = &queue_create_info;
+    create_info.pQueueCreateInfos = &queue_create_infos;
     create_info.queueCreateInfoCount = 1;
     create_info.pEnabledFeatures = &device_features;
     // EXTENSIONS
     {
-        var editable: [*][*c]const u8 = app.arena.push_array([*c]const u8, 1);
+        var editable: [*][*c]const u8 = app.arena.push_array([*c]const u8, 2);
         editable[0] = vk.VK_KHR_SWAPCHAIN_EXTENSION_NAME;
-        create_info.enabledExtensionCount = 1;
+        editable[1] = "VK_KHR_portability_subset";
+        create_info.enabledExtensionCount = 2;
         create_info.ppEnabledExtensionNames = editable;
     }
     // LAYERS IGNORED
@@ -316,6 +333,8 @@ fn create_logical_device(ctx: *LhvkGraphicsCtx) void {
 
     assert(vk.vkCreateDevice(app_data.physical_device, &create_info, null, &app.device) == vk.VK_SUCCESS);
     vk.vkGetDeviceQueue(app.device, indices.graphics_family.?, 0, &app.graphics_queue);
+    vk.vkGetDeviceQueue(app.device, indices.present_family.?, 0, &app.present_queue);
+
 }
 
 const SwapChainSupportDetails = struct {
@@ -413,9 +432,9 @@ fn create_swapchain(ctx: *LhvkGraphicsCtx) !void {
 }
 
 fn create_image_views(ctx: *LhvkGraphicsCtx) !void {
-    const app: *VkApp = &ctx.vk_app;
+    var app: *VkApp = &ctx.vk_app;
     app.image_views = app.arena.push_array(vk.VkImageView, app.swapchain_images.len)[0..app.swapchain_images.len];
-    for (app.image_views, 0..app.swapchain_images.len) |view, i| {
+    for (0..app.swapchain_images.len) |i| {
         var info: vk.VkImageViewCreateInfo = std.mem.zeroes(vk.VkImageViewCreateInfo);
         info.sType = vk.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         info.image = app.swapchain_images[i];
@@ -431,7 +450,7 @@ fn create_image_views(ctx: *LhvkGraphicsCtx) !void {
         info.subresourceRange.baseArrayLayer = 0;
         info.subresourceRange.layerCount = 1;
         // BUG: Can be copying images instead of modifying array
-        if (vk.vkCreateImageView(app.device, &info, null, @constCast(&view)) != vk.VK_SUCCESS) return error.CannotCreateImageView;
+        if (vk.vkCreateImageView(app.device, &info, null, &app.image_views[i]) != vk.VK_SUCCESS) return error.CannotCreateImageView;
     }
 }
 
@@ -623,12 +642,23 @@ fn create_render_pass(ctx: *LhvkGraphicsCtx) !void {
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &color_attachment_ref;
 
+    var dependency = std.mem.zeroes(vk.VkSubpassDependency);
+    dependency.srcSubpass = vk.VK_SUBPASS_EXTERNAL;
+    dependency.dstSubpass = 0;
+    dependency.srcStageMask = vk.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.srcAccessMask = 0;
+    dependency.dstStageMask = vk.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    dependency.dstAccessMask = vk.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
+
     var renderpass_info: vk.VkRenderPassCreateInfo = std.mem.zeroes(vk.VkRenderPassCreateInfo);
     renderpass_info.sType = vk.VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderpass_info.attachmentCount = 1;
     renderpass_info.pAttachments = &attachment_description;
     renderpass_info.subpassCount = 1;
     renderpass_info.pSubpasses = &subpass;
+    renderpass_info.dependencyCount = 1;
+    renderpass_info.pDependencies = &dependency;
 
     if (vk.vkCreateRenderPass(app.device, &renderpass_info, null, &app.render_pass) != vk.VK_SUCCESS) return error.CANNOTCREATERENDERPASS;
 }
@@ -640,12 +670,11 @@ void
     app.swapchain_framebuffers = app.arena.push_array(vk.VkFramebuffer, app.swapchain_images.len)[0..app.swapchain_images.len];
     for (0..app.swapchain_images.len) |i|
     {
-        const attachment: [1]vk.VkImage = .{ app.swapchain_images[i] };
         var framebuffer_create_info: vk.VkFramebufferCreateInfo = std.mem.zeroes(vk.VkFramebufferCreateInfo);
         framebuffer_create_info.sType = vk.VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebuffer_create_info.renderPass = app.render_pass;
         framebuffer_create_info.attachmentCount = 1;
-        framebuffer_create_info.pAttachments = @ptrCast(&attachment);
+        framebuffer_create_info.pAttachments = &app.image_views[i];
         framebuffer_create_info.width = app.extent.width;
         framebuffer_create_info.height = app.extent.height;
         framebuffer_create_info.layers = 1;
@@ -731,6 +760,34 @@ void
     {
         u.err("Ending command buffer not posible", .{});
     }
+
+    // TODO(lucashdez): PROBABLY SEPARATE In ANOTHER FUNCTION
+    var submit_info = std.mem.zeroes(vk.VkSubmitInfo);
+    submit_info.sType = vk.VK_STRUCTURE_TYPE_SUBMIT_INFO;
+
+    submit_info.waitSemaphoreCount = 1;
+    submit_info.pWaitSemaphores = &app.image_available_sem;
+    const wait_stages: [1]vk.VkPipelineStageFlags = .{vk.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
+    submit_info.pWaitDstStageMask = &wait_stages;
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &app.command_buffer;
+    submit_info.signalSemaphoreCount = 1;
+    submit_info.pSignalSemaphores = &app.render_finished_sem;
+    if (vk.vkQueueSubmit(app.graphics_queue, 1, &submit_info, app.in_flight_fence) != vk.VK_SUCCESS) {
+        u.err("Cannot submit commands", .{});
+    }
+
+    var present_info = std.mem.zeroes(vk.VkPresentInfoKHR);
+    present_info.sType = vk.VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+    present_info.waitSemaphoreCount = 1;
+    present_info.pWaitSemaphores = &app.render_finished_sem;
+    present_info.swapchainCount = 1;
+    present_info.pSwapchains = &app.swapchain;
+    present_info.pImageIndices = &ctx.current_image;
+    present_info.pResults = null;
+
+    _ = vk.vkQueuePresentKHR(app.present_queue, &present_info);
+    ctx.current_image = (ctx.current_image + 1) % app.max_frames_in_flight;
 }
 
 fn create_sync_objects(ctx: *LhvkGraphicsCtx)
@@ -752,6 +809,7 @@ void
 pub fn init_vulkan(ctx: *LhvkGraphicsCtx)
 !void
 {
+    ctx.vk_app.max_frames_in_flight = 2;
     _ = try create_instance(&ctx.vk_app, &ctx.vk_appdata);
     _ = setup_debug_messenger(&ctx.vk_app);
     create_surface(ctx, &ctx.vk_app);
@@ -806,3 +864,4 @@ void
     _ = vk.vkAcquireNextImageKHR(app.device, app.swapchain, std.math.maxInt(u64), app.image_available_sem, null, &ctx.current_image);
     _ = vk.vkResetCommandBuffer(app.command_buffer, 0);
 }
+
