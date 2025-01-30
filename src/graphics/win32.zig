@@ -2,10 +2,12 @@ const std = @import("std");
 const sdl = @cImport(@cInclude("SDL2/SDL.h"));
 const raw = @import("../os/win32/win32/everything.zig");
 const u = @import("lhvk_utils.zig");
-
+const e = @import("windowing/events.zig");
+const lhmem = @import("../memory/memory.zig");
 const W = std.unicode.utf8ToUtf16LeStringLiteral;
 const assert = std.debug.assert;
 
+var got_something_useful: i32 = 0;
 
 fn customproc(
     hwnd: ?raw.HWND,
@@ -13,14 +15,12 @@ fn customproc(
     wParam: raw.WPARAM,
     lParam: raw.LPARAM,
 ) callconv(std.os.windows.WINAPI) raw.LRESULT {
-    switch (msg) {
-        raw.WM_DESTROY => {
-            raw.PostQuitMessage(0);
+    switch(msg) {
+        raw.WM_SIZE => {
+            u.info("[WINDOW] GotRESIZE, {}", .{lParam});
             return 0;
         },
-        else => {
-            return raw.DefWindowProcW(hwnd, msg, wParam, lParam);
-        }
+        else => return raw.DefWindowProcW(hwnd, msg, wParam, lParam),
     }
 }
 
@@ -28,11 +28,38 @@ fn customproc(
 
 pub const Window = struct {
     handle: ?*sdl.SDL_Window,
-    instance: ?*anyopaque align(8),
-    surface:  ?*anyopaque align(8),
+    instance: ?*anyopaque align(1),
+    surface:  ?*anyopaque align(1),
     display: ?*anyopaque,
     width: u32,
     height: u32,
+    msg: raw.MSG,
+    events: e.EventList,
+
+    pub fn get_events(window: *Window) void {
+        var get_more_messages: i32 = 1;
+
+        while (get_more_messages == 1) {
+            if (got_something_useful == 1) { get_more_messages = raw.GetMessageW(&window.msg, null, 0, 0);}
+            else { get_more_messages = raw.PeekMessageW(&window.msg, null, 0, 0, raw.PM_REMOVE); }
+
+            if (get_more_messages == 1) {
+                switch (window.msg.message) {
+                    raw.WM_DESTROY => {
+                        get_more_messages = 0;
+                        var event: *e.Event = &window.events.arena.push_array(e.Event, 1)[0];
+                        event.t = .E_QUIT;
+                        window.events.first = event;
+                    },
+
+                    else => {
+                        _ = raw.TranslateMessage(&window.msg);
+                        _ = raw.DispatchMessageW(&window.msg);
+                    }
+                }
+            }
+        }
+    }
 };
 
 pub fn create_window(comptime name: []const u8) Window {
@@ -73,5 +100,7 @@ pub fn create_window(comptime name: []const u8) Window {
         .display =  null,
         .width = width,
         .height = height,
+        .msg = std.mem.zeroes(raw.MSG),
+        .events = e.EventList {.arena = lhmem.make_arena((1 << 10) * 24), .first = null, .last = null},
     };
 }

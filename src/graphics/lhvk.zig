@@ -786,7 +786,9 @@ void
     present_info.pImageIndices = &ctx.current_image;
     present_info.pResults = null;
 
-    _ = vk.vkQueuePresentKHR(app.present_queue, &present_info);
+    const presenting_result = vk.vkQueuePresentKHR(app.present_queue, &present_info);
+    if (presenting_result == vk.VK_ERROR_OUT_OF_DATE_KHR or
+    presenting_result == vk.VK_SUBOPTIMAL_KHR) recreate_swapchain(ctx);
     ctx.current_image = (ctx.current_image + 1) % app.max_frames_in_flight;
 }
 
@@ -804,6 +806,28 @@ void
     if(vk.vkCreateSemaphore(app.device, &semaphore_create_info, null, &app.image_available_sem) != vk.VK_SUCCESS) u.err("Cannot create semaphore", .{});
     if(vk.vkCreateSemaphore(app.device, &semaphore_create_info, null, &app.render_finished_sem) != vk.VK_SUCCESS) u.err("Cannot create semaphore", .{});
     if(vk.vkCreateFence(app.device, &fence_create_info, null, &app.in_flight_fence) != vk.VK_SUCCESS) u.err("Cannot create fence", .{});
+}
+
+fn cleanup_swapchain(ctx: *LhvkGraphicsCtx) void {
+    for (0..ctx.vk_app.swapchain_framebuffers.len) |i| {
+        vk.vkDestroyFramebuffer(ctx.vk_app.device, ctx.vk_app.swapchain_framebuffers[i], null);
+    }
+    for (0..ctx.vk_app.image_views.len) |i| {
+        vk.vkDestroyImageView(ctx.vk_app.device, ctx.vk_app.image_views[i], null);
+    }
+    vk.vkDestroySwapchainKHR(ctx.vk_app.device, ctx.vk_app.swapchain, null);
+}
+
+fn recreate_swapchain(ctx: *LhvkGraphicsCtx) void {
+    _ = vk.vkDeviceWaitIdle(ctx.vk_app.device);
+    cleanup_swapchain(ctx);
+    create_swapchain(ctx) catch {
+        u.err("Something happened recreating the swapchain", .{});
+    };
+    create_image_views(ctx) catch {
+        u.err("Something happened recreating the image views", .{});
+    };
+    create_framebuffers(ctx);
 }
 
 pub fn init_vulkan(ctx: *LhvkGraphicsCtx)
@@ -856,12 +880,19 @@ fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp) void {
 }
 
 pub fn prepare_frame(ctx: *LhvkGraphicsCtx)
-void
+bool
 {
     var app: *VkApp = &ctx.vk_app;
     _ = vk.vkWaitForFences(app.device, 1, &app.in_flight_fence, vk.VK_TRUE, std.math.maxInt(u64));
     _ = vk.vkResetFences(app.device, 1, &app.in_flight_fence);
-    _ = vk.vkAcquireNextImageKHR(app.device, app.swapchain, std.math.maxInt(u64), app.image_available_sem, null, &ctx.current_image);
+    const next_image_result = vk.vkAcquireNextImageKHR(app.device, app.swapchain, std.math.maxInt(u64), app.image_available_sem, null, &ctx.current_image);
+    if (next_image_result == vk.VK_ERROR_OUT_OF_DATE_KHR)
+    {
+        recreate_swapchain(ctx);
+        return true;
+    }
+
     _ = vk.vkResetCommandBuffer(app.command_buffer, 0);
+    return false;
 }
 

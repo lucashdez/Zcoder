@@ -11,6 +11,7 @@ const lhmem = @import("memory/memory.zig");
 const Arena = lhmem.Arena;
 const lhvk = @import("graphics/lhvk.zig");
 const windowing = if (@import("builtin").os.tag == .windows) @import("graphics/win32.zig") else @import("graphics/wayland.zig");
+const e = @import("graphics/windowing/events.zig");
 
 const la = @import("lin_alg/la.zig");
 const FONT_ROWS = 7;
@@ -277,7 +278,7 @@ pub fn main() !void {
 
 
     var arr = std.ArrayList(u8).init(allocator);
-    var buffer: Buffer = Buffer{
+    var buffer: Buffer = Buffer {
         .arena = lhmem.make_arena(1 << 10),
         .cursor_pos = BufferPos2D.init(0, 0),
         .global_cursor_pos = 0,
@@ -289,89 +290,13 @@ pub fn main() !void {
     try buffer.open_or_create_file("main.c");
     var quit: bool = false;
     while (!quit) {
-        lhvk.prepare_frame(&app.graphics_ctx);
+        if (lhvk.prepare_frame(&app.graphics_ctx)) continue;
         lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
-
-        var event: sdl.SDL_Event = undefined;
-        while (sdl.SDL_PollEvent(&event) > 0) {
-            switch (event.type) {
-                sdl.SDL_QUIT => {
-                    quit = true;
-                },
-                sdl.SDL_KEYDOWN => {
-                    switch (event.key.keysym.sym) {
-                        sdl.SDLK_BACKSPACE => {
-                            if (buffer.cursor_pos.x > 0) {
-                                buffer.cursor_pos.x -= 1;
-                                buffer.global_cursor_pos -= 1;
-                                _ = buffer.buffer.orderedRemove(buffer.global_cursor_pos);
-                            }
-                        },
-                        sdl.SDLK_UP => {
-                            if (buffer.cursor_pos.y > 0) {
-                                buffer.cursor_pos.y -= 1;
-                                buffer.global_cursor_pos -= @as(usize, @intCast(buffer.cursor_pos.x));
-                                buffer.global_cursor_pos -= 1;
-                                const len = line_length(buffer.buffer, @intCast(buffer.cursor_pos.y));
-                                if (buffer.cursor_pos.x > len) {
-                                    buffer.cursor_pos.x = @intCast(len);
-                                } else {
-                                    buffer.cursor_pos.x = buffer.cursor_pos.x;
-                                }
-                                buffer.global_cursor_pos -= len;
-                                buffer.global_cursor_pos += @intCast(buffer.cursor_pos.x);
-                            }
-                        },
-                        sdl.SDLK_DOWN => {
-                            const len = line_length(buffer.buffer, @intCast(buffer.cursor_pos.y));
-                            const first_in_next_line = ((buffer.global_cursor_pos - @as(usize, @intCast(buffer.cursor_pos.x))) + len + 1);
-                            if (buffer.buffer.items.len > first_in_next_line) {
-                                buffer.cursor_pos.y += 1;
-                                buffer.global_cursor_pos -= @as(usize, @intCast(buffer.cursor_pos.x));
-                                buffer.global_cursor_pos += len + 1;
-                                const next_len = line_length(buffer.buffer, @intCast(buffer.cursor_pos.y));
-                                if (buffer.cursor_pos.x > next_len) {
-                                    buffer.cursor_pos.x = @intCast(next_len);
-                                }
-                                buffer.global_cursor_pos += @intCast(buffer.cursor_pos.x);
-                            }
-                        },
-                        sdl.SDLK_LEFT => {
-                            if (buffer.cursor_pos.x > 0) {
-                                buffer.cursor_pos.x -= 1;
-                                buffer.global_cursor_pos -= 1;
-                            }
-                        },
-                        sdl.SDLK_RIGHT => {
-                            if (buffer.global_cursor_pos < buffer.buffer.items.len and buffer.buffer.items[buffer.global_cursor_pos] != '\n') {
-                                buffer.cursor_pos.x += 1;
-                                buffer.global_cursor_pos += 1;
-                            }
-                        },
-                        sdl.SDLK_RETURN => {
-                            try buffer.buffer.insert(buffer.global_cursor_pos, '\n');
-                            buffer.cursor_pos.x = 0;
-                            buffer.cursor_pos.y = buffer.cursor_pos.y + 1;
-                            buffer.global_cursor_pos += 1;
-                        },
-                        else => {},
-                    }
-                },
-                sdl.SDL_TEXTINPUT => {
-                    const char = event.text.text;
-                    try buffer.buffer.insert(buffer.global_cursor_pos, char[0]);
-                    buffer.cursor_pos.x += 1;
-                    buffer.global_cursor_pos += 1;
-                },
-                else => {},
-            }
+        app.graphics_ctx.window.get_events();
+        if (app.graphics_ctx.window.events.first) |event| {
+            if (event.t == .E_QUIT) quit = true;
         }
-        _ = sdl.SDL_SetRenderDrawColor(renderer, 0x0C, 0x0C, 0x0C, 0);
-        _ = sdl.SDL_RenderClear(renderer);
 
-        render_cursor(renderer, buffer, 0x0000FF000, 5);
-        render_mark(renderer, buffer, 0x00009900, 5);
-        sdl.SDL_RenderPresent(renderer);
         lhvk.end_command_buffer_rendering(&app.graphics_ctx);
     }
     sdl.SDL_Quit();

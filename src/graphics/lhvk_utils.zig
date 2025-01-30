@@ -22,6 +22,9 @@ pub fn warn(comptime s: []const u8, args: anytype) void {
 pub fn err(comptime s: []const u8, args: anytype) void {
     std.debug.print(RED++"[ERROR] "++RESET++s++"\n", args);
 }
+pub fn info(comptime s: []const u8, args: anytype) void {
+    std.debug.print(CYAN++"[INFO] "++RESET++s++"\n", args);
+}
 
 pub const String8 = struct {
     str: *u8,
