@@ -15,13 +15,7 @@ fn customproc(
     wParam: raw.WPARAM,
     lParam: raw.LPARAM,
 ) callconv(std.os.windows.WINAPI) raw.LRESULT {
-    switch(msg) {
-        raw.WM_SIZE => {
-            u.info("[WINDOW] GotRESIZE, {}", .{lParam});
-            return 0;
-        },
-        else => return raw.DefWindowProcW(hwnd, msg, wParam, lParam),
-    }
+    return raw.DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
 
@@ -36,27 +30,14 @@ pub const Window = struct {
     msg: raw.MSG,
     events: e.EventList,
 
-    pub fn get_events(window: *Window) void {
-        var get_more_messages: i32 = 1;
+    pub fn get_events(window: *Window)
+    void
+    {
+        if (raw.PeekMessageW(&window.msg, null, 0, 0, raw.PM_REMOVE) > 0)
+        {
+            switch(window.msg.message)
+            {
 
-        while (get_more_messages == 1) {
-            if (got_something_useful == 1) { get_more_messages = raw.GetMessageW(&window.msg, null, 0, 0);}
-            else { get_more_messages = raw.PeekMessageW(&window.msg, null, 0, 0, raw.PM_REMOVE); }
-
-            if (get_more_messages == 1) {
-                switch (window.msg.message) {
-                    raw.WM_DESTROY => {
-                        get_more_messages = 0;
-                        var event: *e.Event = &window.events.arena.push_array(e.Event, 1)[0];
-                        event.t = .E_QUIT;
-                        window.events.first = event;
-                    },
-
-                    else => {
-                        _ = raw.TranslateMessage(&window.msg);
-                        _ = raw.DispatchMessageW(&window.msg);
-                    }
-                }
             }
         }
     }
@@ -81,7 +62,7 @@ pub fn create_window(comptime name: []const u8) Window {
         .DLGFRAME = 1,
         .BORDER = 1,
     };
-    const hwnd: ?raw.HWND align(8) = @alignCast(raw.CreateWindowExW(
+    const hwnd: ?raw.HWND = raw.CreateWindowExW(
         .{},
         class_name,
         W("Learn to program"),
@@ -90,7 +71,7 @@ pub fn create_window(comptime name: []const u8) Window {
         null,
         null,
         hinstance,
-        null));
+        null);
     assert(hwnd != null);
     _ = raw.ShowWindow(hwnd.?, raw.SW_SHOW);
     return Window {
