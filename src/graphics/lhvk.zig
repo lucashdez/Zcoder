@@ -861,18 +861,10 @@ fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp) void {
         const result = vk.vkCreateWin32SurfaceKHR(app.instance, &create_info, null, &app.surface);
         assert(result == vk.VK_SUCCESS);
     } else {
-        u.warn("ALIGNMENT: display {}\nsurface: {}\n\nhwnd {}|| {d:.10} \nhinstance {} || {d:.10}", .{
-            @alignOf(@TypeOf(ctx.window.display.?)),
-            @alignOf(@TypeOf(ctx.window.surface.?)),
-            @intFromPtr(ctx.window.display.?),
-            @as(f32, @floatFromInt(@intFromPtr(ctx.window.display.?))) / 8,
-            @intFromPtr(ctx.window.surface.?),
-            @as(f32, @floatFromInt(@intFromPtr(ctx.window.surface.?))) / 8
-        });
         var create_info: vk.VkWaylandSurfaceCreateInfoKHR = .{
             .sType = vk.VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
-            .display = @alignCast(@ptrCast(ctx.window.surface.?)),
-            .surface = @alignCast(@ptrCast(ctx.window.display.?)),
+            .display = @alignCast(@ptrCast(ctx.window.raw.surface.?)),
+            .surface = @alignCast(@ptrCast(ctx.window.raw.display.?)),
         };
         const result = vk.vkCreateWaylandSurfaceKHR(app.instance, &create_info, null, &app.surface);
         assert(result == vk.VK_SUCCESS);
