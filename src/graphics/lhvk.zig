@@ -172,7 +172,7 @@ fn create_instance(app: *VkApp, app_data: ?*VkAppData) VulkanInitError!void {
         create_info.ppEnabledLayerNames = null;
     }
     // Extensions
-    var editable: [*][*c]const u8 = app.arena.push_array([*c]const u8, 4);
+    var editable: [*][*c]const u8 = app.arena.push_array([*c]const u8, 5);
     editable[0] = vk.VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
     editable[1] = vk.VK_KHR_SURFACE_EXTENSION_NAME;
     // TODO: wayland and xcb extensions
@@ -182,7 +182,8 @@ fn create_instance(app: *VkApp, app_data: ?*VkAppData) VulkanInitError!void {
         editable[2] = vk.VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME;
     }
     editable[3] = "VK_KHR_get_physical_device_properties2";
-    create_info.enabledExtensionCount = 4;
+    editable[4] = vk.VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
+    create_info.enabledExtensionCount = 5;
     create_info.ppEnabledExtensionNames = editable;
     _ = vk.vkCreateInstance(&create_info, null, @constCast(&app.*.instance));
     if (app.instance == null) {
@@ -287,7 +288,7 @@ fn create_logical_device(ctx: *LhvkGraphicsCtx) void {
     assert(indices.graphics_family != null);
     assert(indices.present_family != null);
     app_data.queue_priority = 1.0;
-    var queue_create_infos: [2] vk.VkDeviceQueueCreateInfo = undefined;
+    var queue_create_infos: [2]vk.VkDeviceQueueCreateInfo = undefined;
     { // graphics queue
         queue_create_infos[0].sType = vk.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queue_create_infos[0].pNext = null;
@@ -306,7 +307,6 @@ fn create_logical_device(ctx: *LhvkGraphicsCtx) void {
         queue_create_infos[1].pQueuePriorities = &app_data.queue_priority;
     }
 
-
     var device_features: vk.VkPhysicalDeviceFeatures = undefined;
     vk.vkGetPhysicalDeviceFeatures(app_data.physical_device, &device_features);
     u.trace("device_features {any}", .{device_features});
@@ -319,10 +319,11 @@ fn create_logical_device(ctx: *LhvkGraphicsCtx) void {
     create_info.pEnabledFeatures = &device_features;
     // EXTENSIONS
     {
-        var editable: [*][*c]const u8 = app.arena.push_array([*c]const u8, 2);
+        var editable: [*][*c]const u8 = app.arena.push_array([*c]const u8, 1);
         editable[0] = vk.VK_KHR_SWAPCHAIN_EXTENSION_NAME;
-        editable[1] = "VK_KHR_portability_subset";
-        create_info.enabledExtensionCount = 2;
+        // WINDOWS thing
+        //editable[1] = "VK_KHR_portability_subset";
+        create_info.enabledExtensionCount = 1;
         create_info.ppEnabledExtensionNames = editable;
     }
     // LAYERS IGNORED
@@ -334,7 +335,6 @@ fn create_logical_device(ctx: *LhvkGraphicsCtx) void {
     assert(vk.vkCreateDevice(app_data.physical_device, &create_info, null, &app.device) == vk.VK_SUCCESS);
     vk.vkGetDeviceQueue(app.device, indices.graphics_family.?, 0, &app.graphics_queue);
     vk.vkGetDeviceQueue(app.device, indices.present_family.?, 0, &app.present_queue);
-
 }
 
 const SwapChainSupportDetails = struct {
@@ -460,7 +460,7 @@ fn read_file(arena: *lhmem.Arena, file_name: []const u8) ![]const u8 {
         defer arena_int.deinit();
         const alloc = arena_int.allocator();
         const dir = try std.fs.cwd().realpathAlloc(alloc, ".");
-        u.err("File not Found at: {s}{s}", .{dir,file_name});
+        u.err("File not Found at: {s}{s}", .{ dir, file_name });
         return error.FileNotFound;
     };
     const metadata = try file.metadata();
@@ -650,7 +650,6 @@ fn create_render_pass(ctx: *LhvkGraphicsCtx) !void {
     dependency.dstStageMask = vk.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     dependency.dstAccessMask = vk.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-
     var renderpass_info: vk.VkRenderPassCreateInfo = std.mem.zeroes(vk.VkRenderPassCreateInfo);
     renderpass_info.sType = vk.VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderpass_info.attachmentCount = 1;
@@ -663,13 +662,10 @@ fn create_render_pass(ctx: *LhvkGraphicsCtx) !void {
     if (vk.vkCreateRenderPass(app.device, &renderpass_info, null, &app.render_pass) != vk.VK_SUCCESS) return error.CANNOTCREATERENDERPASS;
 }
 
-fn create_framebuffers(ctx: *LhvkGraphicsCtx)
-void
-{
+fn create_framebuffers(ctx: *LhvkGraphicsCtx) void {
     var app: *VkApp = &ctx.vk_app;
     app.swapchain_framebuffers = app.arena.push_array(vk.VkFramebuffer, app.swapchain_images.len)[0..app.swapchain_images.len];
-    for (0..app.swapchain_images.len) |i|
-    {
+    for (0..app.swapchain_images.len) |i| {
         var framebuffer_create_info: vk.VkFramebufferCreateInfo = std.mem.zeroes(vk.VkFramebufferCreateInfo);
         framebuffer_create_info.sType = vk.VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
         framebuffer_create_info.renderPass = app.render_pass;
@@ -678,17 +674,13 @@ void
         framebuffer_create_info.width = app.extent.width;
         framebuffer_create_info.height = app.extent.height;
         framebuffer_create_info.layers = 1;
-        if (vk.vkCreateFramebuffer(app.device, &framebuffer_create_info, null, &app.swapchain_framebuffers[i]) != vk.VK_SUCCESS)
-        {
+        if (vk.vkCreateFramebuffer(app.device, &framebuffer_create_info, null, &app.swapchain_framebuffers[i]) != vk.VK_SUCCESS) {
             u.err("Couldnt create framebuffer {}", .{i});
         }
     }
-
 }
 
-fn create_command_pool(ctx: *LhvkGraphicsCtx)
-void
-{
+fn create_command_pool(ctx: *LhvkGraphicsCtx) void {
     var app = &ctx.vk_app;
     const appdata = &ctx.vk_appdata;
     const queue_family_indices = try find_queue_families(ctx, appdata.physical_device);
@@ -696,30 +688,24 @@ void
     pool_info.sType = vk.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     pool_info.flags = vk.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     pool_info.queueFamilyIndex = queue_family_indices.graphics_family.?;
-    if (vk.vkCreateCommandPool(app.device, &pool_info, null, &app.command_pool) != vk.VK_SUCCESS)
-    {
+    if (vk.vkCreateCommandPool(app.device, &pool_info, null, &app.command_pool) != vk.VK_SUCCESS) {
         u.err("Couldnt create command pool", .{});
     }
 }
 
-fn create_command_buffer(ctx: *LhvkGraphicsCtx)
-void
-{
+fn create_command_buffer(ctx: *LhvkGraphicsCtx) void {
     var app: *VkApp = &ctx.vk_app;
-    var alloc_info : vk.VkCommandBufferAllocateInfo = std.mem.zeroes(vk.VkCommandBufferAllocateInfo);
+    var alloc_info: vk.VkCommandBufferAllocateInfo = std.mem.zeroes(vk.VkCommandBufferAllocateInfo);
     alloc_info.sType = vk.VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     alloc_info.commandPool = app.command_pool;
     alloc_info.level = vk.VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     alloc_info.commandBufferCount = 1;
-    if (vk.vkAllocateCommandBuffers(app.device, &alloc_info, &app.command_buffer) != vk.VK_SUCCESS)
-    {
+    if (vk.vkAllocateCommandBuffers(app.device, &alloc_info, &app.command_buffer) != vk.VK_SUCCESS) {
         u.err("Cannot create command buffer", .{});
     }
 }
 
-pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx)
-void
-{
+pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     const app: *VkApp = &ctx.vk_app;
     var begin_info = std.mem.zeroes(vk.VkCommandBufferBeginInfo);
     begin_info.sType = vk.VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -751,13 +737,10 @@ void
     vk.vkCmdDraw(app.command_buffer, 3, 1, 0, 0);
 }
 
-pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx)
-void
-{
+pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     const app: *VkApp = &ctx.vk_app;
     vk.vkCmdEndRenderPass(app.command_buffer);
-    if (vk.vkEndCommandBuffer(app.command_buffer) != vk.VK_SUCCESS)
-    {
+    if (vk.vkEndCommandBuffer(app.command_buffer) != vk.VK_SUCCESS) {
         u.err("Ending command buffer not posible", .{});
     }
 
@@ -788,13 +771,11 @@ void
 
     const presenting_result = vk.vkQueuePresentKHR(app.present_queue, &present_info);
     if (presenting_result == vk.VK_ERROR_OUT_OF_DATE_KHR or
-    presenting_result == vk.VK_SUBOPTIMAL_KHR) recreate_swapchain(ctx);
+        presenting_result == vk.VK_SUBOPTIMAL_KHR) recreate_swapchain(ctx);
     ctx.current_image = (ctx.current_image + 1) % app.max_frames_in_flight;
 }
 
-fn create_sync_objects(ctx: *LhvkGraphicsCtx)
-void
-{
+fn create_sync_objects(ctx: *LhvkGraphicsCtx) void {
     var app: *VkApp = &ctx.vk_app;
     var semaphore_create_info = std.mem.zeroes(vk.VkSemaphoreCreateInfo);
     semaphore_create_info.sType = vk.VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
@@ -803,9 +784,9 @@ void
     fence_create_info.sType = vk.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fence_create_info.flags = vk.VK_FENCE_CREATE_SIGNALED_BIT;
 
-    if(vk.vkCreateSemaphore(app.device, &semaphore_create_info, null, &app.image_available_sem) != vk.VK_SUCCESS) u.err("Cannot create semaphore", .{});
-    if(vk.vkCreateSemaphore(app.device, &semaphore_create_info, null, &app.render_finished_sem) != vk.VK_SUCCESS) u.err("Cannot create semaphore", .{});
-    if(vk.vkCreateFence(app.device, &fence_create_info, null, &app.in_flight_fence) != vk.VK_SUCCESS) u.err("Cannot create fence", .{});
+    if (vk.vkCreateSemaphore(app.device, &semaphore_create_info, null, &app.image_available_sem) != vk.VK_SUCCESS) u.err("Cannot create semaphore", .{});
+    if (vk.vkCreateSemaphore(app.device, &semaphore_create_info, null, &app.render_finished_sem) != vk.VK_SUCCESS) u.err("Cannot create semaphore", .{});
+    if (vk.vkCreateFence(app.device, &fence_create_info, null, &app.in_flight_fence) != vk.VK_SUCCESS) u.err("Cannot create fence", .{});
 }
 
 fn cleanup_swapchain(ctx: *LhvkGraphicsCtx) void {
@@ -830,9 +811,7 @@ fn recreate_swapchain(ctx: *LhvkGraphicsCtx) void {
     create_framebuffers(ctx);
 }
 
-pub fn init_vulkan(ctx: *LhvkGraphicsCtx)
-!void
-{
+pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
     ctx.vk_app.max_frames_in_flight = 2;
     _ = try create_instance(&ctx.vk_app, &ctx.vk_appdata);
     _ = setup_debug_messenger(&ctx.vk_app);
@@ -863,23 +842,20 @@ fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp) void {
     } else {
         var create_info: vk.VkWaylandSurfaceCreateInfoKHR = .{
             .sType = vk.VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
-            .display = @alignCast(@ptrCast(ctx.window.raw.surface.?)),
-            .surface = @alignCast(@ptrCast(ctx.window.raw.display.?)),
+            .display = @alignCast(@ptrCast(ctx.window.raw.display.?)),
+            .surface = @alignCast(@ptrCast(ctx.window.raw.surface.?)),
         };
         const result = vk.vkCreateWaylandSurfaceKHR(app.instance, &create_info, null, &app.surface);
         assert(result == vk.VK_SUCCESS);
     }
 }
 
-pub fn prepare_frame(ctx: *LhvkGraphicsCtx)
-bool
-{
+pub fn prepare_frame(ctx: *LhvkGraphicsCtx) bool {
     var app: *VkApp = &ctx.vk_app;
     _ = vk.vkWaitForFences(app.device, 1, &app.in_flight_fence, vk.VK_TRUE, std.math.maxInt(u64));
     _ = vk.vkResetFences(app.device, 1, &app.in_flight_fence);
     const next_image_result = vk.vkAcquireNextImageKHR(app.device, app.swapchain, std.math.maxInt(u64), app.image_available_sem, null, &ctx.current_image);
-    if (next_image_result == vk.VK_ERROR_OUT_OF_DATE_KHR)
-    {
+    if (next_image_result == vk.VK_ERROR_OUT_OF_DATE_KHR) {
         recreate_swapchain(ctx);
         return true;
     }
@@ -887,4 +863,3 @@ bool
     _ = vk.vkResetCommandBuffer(app.command_buffer, 0);
     return false;
 }
-
