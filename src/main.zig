@@ -254,29 +254,11 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     const allocator = std.heap.page_allocator;
     defer arena.deinit();
-
-
-
-
-    if (sdl.SDL_Init(sdl.SDL_INIT_VIDEO) < 0) {
-        return error.MainSDLError;
-    }
-
-    _ = sdl;
-
-    var window: *sdl.SDL_Window = undefined;
-    var renderer: *sdl.SDL_Renderer = undefined;
-
-    window = sdl.SDL_CreateWindow("my window", 100, 100, 640, 480, sdl.SDL_WINDOW_SHOWN | sdl.SDL_WINDOW_RESIZABLE).?;
-    renderer = sdl.SDL_CreateRenderer(window, -1, sdl.SDL_RENDERER_ACCELERATED).?;
-
     var app: Application = undefined;
     app.graphics_ctx.window = windowing.create_window("algo");
-    app.graphics_ctx.vk_app.arena = lhmem.make_arena((1 << 10) * 24);
+    app.graphics_ctx.vk_app.arena = lhmem.make_arena((1 << 10) * 100);
     app.graphics_ctx.vk_appdata.arena = lhmem.make_arena((1 << 10) * 100);
     try lhvk.init_vulkan(&app.graphics_ctx);
-
-
     var arr = std.ArrayList(u8).init(allocator);
     var buffer: Buffer = Buffer {
         .arena = lhmem.make_arena(1 << 10),
@@ -293,13 +275,13 @@ pub fn main() !void {
         if (lhvk.prepare_frame(&app.graphics_ctx)) continue;
         lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
         app.graphics_ctx.window.get_events();
-        if (app.graphics_ctx.window.events.first) |event| {
-            if (event.t == .E_QUIT) quit = true;
+        if (app.graphics_ctx.window.event) |event| {
+            switch (event) {
+                .E_QUIT => quit = true,
+                else => {},
+            }
         }
-
         lhvk.end_command_buffer_rendering(&app.graphics_ctx);
     }
-    sdl.SDL_Quit();
-    print("SE ACABO", .{});
     try buffer.save_file();
 }

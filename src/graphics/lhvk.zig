@@ -6,6 +6,7 @@ const Arena = lhmem.Arena;
 const assert = std.debug.assert;
 const u = @import("lhvk_utils.zig");
 const la = @import("../lin_alg/la.zig");
+const TARGET_OS = @import("builtin").os.tag;
 
 pub const LhvkGraphicsCtx = struct {
     window: Window,
@@ -176,7 +177,7 @@ fn create_instance(app: *VkApp, app_data: ?*VkAppData) VulkanInitError!void {
     editable[0] = vk.VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
     editable[1] = vk.VK_KHR_SURFACE_EXTENSION_NAME;
     // TODO: wayland and xcb extensions
-    if (@import("builtin").os.tag == .windows) {
+    if (TARGET_OS == .windows) {
         editable[2] = vk.VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
     } else {
         editable[2] = vk.VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME;
@@ -319,11 +320,18 @@ fn create_logical_device(ctx: *LhvkGraphicsCtx) void {
     create_info.pEnabledFeatures = &device_features;
     // EXTENSIONS
     {
-        var editable: [*][*c]const u8 = app.arena.push_array([*c]const u8, 1);
+        var count: u32 = 1;
+        if (TARGET_OS == .windows) {
+            count = 2;
+        }
+        var editable: [*][*c]const u8 = app.arena.push_array([*c]const u8, count);
         editable[0] = vk.VK_KHR_SWAPCHAIN_EXTENSION_NAME;
         // WINDOWS thing
-        //editable[1] = "VK_KHR_portability_subset";
-        create_info.enabledExtensionCount = 1;
+        if (TARGET_OS == .windows) {
+            editable[1] = "VK_KHR_portability_subset";
+        }
+
+        create_info.enabledExtensionCount = count;
         create_info.ppEnabledExtensionNames = editable;
     }
     // LAYERS IGNORED
@@ -771,7 +779,11 @@ pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
 
     const presenting_result = vk.vkQueuePresentKHR(app.present_queue, &present_info);
     if (presenting_result == vk.VK_ERROR_OUT_OF_DATE_KHR or
-        presenting_result == vk.VK_SUBOPTIMAL_KHR) recreate_swapchain(ctx);
+        presenting_result == vk.VK_SUBOPTIMAL_KHR
+    ) {
+        recreate_swapchain(ctx);
+        u.info("Recreating swapchain", .{});
+    }
     ctx.current_image = (ctx.current_image + 1) % app.max_frames_in_flight;
 }
 
@@ -830,7 +842,7 @@ pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
 }
 
 fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp) void {
-    if (@import("builtin").os.tag == .windows) {
+    if (TARGET_OS == .windows) {
         u.warn("ALIGNMENT: hwnd {}\n\thinstance: {}\n\nhwnd {}|| {d:.10} \nhinstance {} || {d:.10}", .{ @alignOf(*anyopaque), @alignOf(vk.HINSTANCE), @intFromPtr(ctx.window.instance.?), @as(f32, @floatFromInt(@intFromPtr(ctx.window.instance.?))) / 8, @intFromPtr(ctx.window.surface.?), @as(f32, @floatFromInt(@intFromPtr(ctx.window.surface.?))) / 8 });
         var create_info: vk.VkWin32SurfaceCreateInfoKHR = .{
             .sType = vk.VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR,

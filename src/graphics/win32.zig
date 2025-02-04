@@ -28,17 +28,56 @@ pub const Window = struct {
     width: u32,
     height: u32,
     msg: raw.MSG,
-    events: e.EventList,
+    event: ?e.EventType,
 
     pub fn get_events(window: *Window)
     void
     {
         if (raw.PeekMessageW(&window.msg, null, 0, 0, raw.PM_REMOVE) > 0)
         {
+            var handled = false;
+            _ = raw.TranslateMessage(&window.msg);
             switch(window.msg.message)
             {
-
+                raw.WM_NCLBUTTONDOWN => {
+                    switch (window.msg.wParam) {
+                        raw.HTCLOSE => {handled=true; raw.PostQuitMessage(0);},
+                        raw.HTLEFT => u.info("Left resize edge", .{}),
+                        raw.HTRIGHT => u.info("Right resize edge", .{}),
+                        raw.HTTOP => u.info("Top resize edge", .{}),
+                        raw.HTBOTTOM => u.info("Bottom resize edge", .{}),
+                        raw.HTTOPLEFT => u.info("Top-left resize corner", .{}),
+                        raw.HTTOPRIGHT => u.info("Top-right resize corner", .{}),
+                        raw.HTBOTTOMLEFT => u.info("Bottom-left resize corner", .{}),
+                        raw.HTBOTTOMRIGHT => u.info("Bottom-right resize corner", .{}),
+                        else => u.info("Non-client area clicked: {}", .{window.msg.wParam}),
+                    }
+                },
+                raw.WM_CLOSE => {u.info("CLOSE", .{}); handled = true;},
+                raw.WM_SIZE => {u.info("SIZE", .{});
+                    const width: i32 = @intCast(window.msg.lParam & 0xFFFF); // Low word (width)
+                    const height: i32 = @intCast((window.msg.lParam >> 16) & 0xFFFF); // High word (height)
+                    u.info("Window resized: {}x{}", .{width, height});
+                },
+                raw.WM_PAINT => {},
+                raw.WM_DESTROY => {u.info("DESTROY", .{});},
+                raw.WM_QUIT => {window.event = .E_QUIT; handled = true;},
+                raw.WM_SIZING => {
+                    u.info("Resizing window interactively: {}", .{window.msg.wParam});
+                },
+                raw.WM_MOUSEMOVE => {
+                    const x: i32 = @intCast(window.msg.lParam & 0xFFFF); // Low word (width)
+                    const y: i32 = @intCast((window.msg.lParam >> 16) & 0xFFFF); // High word (height)
+                    u.info("MOUSE: {}x{}", .{x, y});
+                },
+                raw.WM_NCMOUSEMOVE => {
+                    const x: i32 = @intCast(window.msg.lParam & 0xFFFF); // Low word (width)
+                    const y: i32 = @intCast((window.msg.lParam >> 16) & 0xFFFF); // High word (height)
+                    u.info("NCMOUSE: {}x{}", .{x, y});
+                },
+                else => {u.warn("Not handled: {}", .{window.msg.message});},
             }
+            if (!handled) _ = raw.DefWindowProcW(window.msg.hwnd, window.msg.message, window.msg.wParam, window.msg.lParam);
         }
     }
 };
@@ -62,7 +101,7 @@ pub fn create_window(comptime name: []const u8) Window {
         .DLGFRAME = 1,
         .BORDER = 1,
     };
-    const hwnd: ?raw.HWND = raw.CreateWindowExW(
+    const hwnd_opt: ?raw.HWND = raw.CreateWindowExW(
         .{},
         class_name,
         W("Learn to program"),
@@ -72,16 +111,18 @@ pub fn create_window(comptime name: []const u8) Window {
         null,
         hinstance,
         null);
-    assert(hwnd != null);
-    _ = raw.ShowWindow(hwnd.?, raw.SW_SHOW);
+    assert(hwnd_opt != null);
+    const hwnd = hwnd_opt.?;
+
+    _ = raw.ShowWindow(hwnd, raw.SW_SHOW);
     return Window {
         .handle = null,
         .instance = hinstance,
-        .surface =  hwnd.?,
+        .surface =  hwnd,
         .display =  null,
         .width = width,
         .height = height,
         .msg = std.mem.zeroes(raw.MSG),
-        .events = e.EventList {.arena = lhmem.make_arena((1 << 10) * 24), .first = null, .last = null},
+        .event = null,
     };
 }
