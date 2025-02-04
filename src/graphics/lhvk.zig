@@ -779,8 +779,8 @@ pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
 
     const presenting_result = vk.vkQueuePresentKHR(app.present_queue, &present_info);
     if (presenting_result == vk.VK_ERROR_OUT_OF_DATE_KHR or
-        presenting_result == vk.VK_SUBOPTIMAL_KHR
-    ) {
+        presenting_result == vk.VK_SUBOPTIMAL_KHR)
+    {
         recreate_swapchain(ctx);
         u.info("Recreating swapchain", .{});
     }

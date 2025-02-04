@@ -1,8 +1,7 @@
 const std = @import("std");
-const sdl = @cImport(@cInclude("SDL2/SDL.h"));
 const u = @import("lhvk_utils.zig");
-const wl = @import("../os/wayland/wayland.zig");
-const xdg = @import("../os/wayland/xdg.zig");
+//const wl = @import("../os/wayland/wayland.zig");
+const wl = @import("../os/wayland/xdg.zig");
 const assert = std.debug.assert;
 const e = @import("windowing/events.zig");
 const lhmem = @import("../memory/memory.zig");
@@ -20,6 +19,7 @@ fn glb_reg_handler(data: ?*anyopaque, registry: ?*wl.wl_registry, name: u32, int
             reg_data.compositor = @ptrCast(@alignCast(proxy));
         } else if (std.mem.eql(u8, interface[0..len], "xdg_wm_base")) {
             u.info("Received xdg_wm_base event through registry", .{});
+            reg_data.wm_base = @ptrCast(wl.wl_registry_bind(registry, name, &wl.xdg_wm_base_interface, version));
         }
     }
 
@@ -41,15 +41,17 @@ pub const WaylandProps = struct {
     registry: ?*wl.wl_registry,
     listener: ?wl.wl_registry_listener,
     queue: ?*wl.wl_event_queue,
-    wm_base: ?*xdg.xdg_wm_base,
+    wm_base: ?*wl.xdg_wm_base,
+    wm_surface: ?*wl.xdg_surface,
+    wm_toplevel: ?*wl.xdg_toplevel,
 };
 
 pub const Window = struct {
-    handle: ?*sdl.SDL_Window,
+    handle: ?*i32,
     raw: WaylandProps,
     width: u32,
     height: u32,
-    events: e.EventList,
+    event: ?e.EventType,
     pub fn get_events(window: *Window) void {
         _ = window;
     }
@@ -88,7 +90,7 @@ pub fn create_window(name: []const u8) Window {
     return Window{
         .handle = null,
         .raw = props,
-        .events = e.EventList{ .first = null, .last = null, .arena = lhmem.make_arena(1 << 10) },
+        .event = null,
         .width = 800,
         .height = 600,
     };

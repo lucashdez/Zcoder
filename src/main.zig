@@ -1,9 +1,6 @@
 const __DEBUG__: bool = true;
 const std = @import("std");
 const TARGET_OS = @import("builtin").os.tag;
-const sdl = @cImport({
-    @cInclude("SDL2/SDL.h");
-});
 const zigimg = @import("zigimg");
 const Font = @import("font/font.zig");
 const FontAttributes = Font.FontAttributes;
@@ -101,145 +98,6 @@ pub fn line_length(text: *const std.ArrayList(u8), line: usize) usize {
     return len;
 }
 
-pub fn render_char(renderer: *sdl.SDL_Renderer, font: *sdl.SDL_Texture, c: u8, pos: la.Vec2f, color: u32, scale: f32)
-void
-{
-    if (c > 0) {
-        const index = c - 32;
-        const col = index % FONT_COLS;
-        const row = index / FONT_COLS;
-
-        const src: sdl.SDL_Rect = .{
-            .x = col * FONT_CHAR_WIDTH,
-            .y = row * FONT_CHAR_HEIGHT,
-            .w = FONT_CHAR_WIDTH,
-            .h = FONT_CHAR_HEIGHT,
-        };
-
-        const dst: sdl.SDL_Rect = .{
-            .x = @intFromFloat(pos.x),
-            .y = @intFromFloat(pos.y),
-            .w = @intFromFloat(FONT_CHAR_WIDTH * scale),
-            .h = @intFromFloat(FONT_CHAR_HEIGHT * scale),
-        };
-
-        const r: u8 = @intCast((color >> 16) & 0xff);
-        const g: u8 = @intCast((color >> 8) & 0xff);
-        const b: u8 = @intCast((color >> 0) & 0xff);
-        const a: u8 = @intCast((color >> 24) & 0xff);
-        _ = sdl.SDL_SetTextureColorMod(font, r, g, b);
-        _ = sdl.SDL_SetTextureAlphaMod(font, a);
-
-        _ = sdl.SDL_RenderCopy(renderer, font, &src, &dst);
-    }
-}
-
-pub fn render_text(renderer: *sdl.SDL_Renderer, font: *sdl.SDL_Texture, text: []const u8, pos: la.Vec2f, color: u32, scale: f32) void {
-    var pen = pos;
-    for (text) |c| {
-        if (c == '\n') {
-            pen = la.vec2f(0, pen.y);
-            pen = la.vec2f_add(pen, la.vec2f(0, FONT_CHAR_HEIGHT * scale));
-        } else {
-            render_char(renderer, font, c, pen, color, scale);
-            pen = la.vec2f_add(pen, la.vec2f(FONT_CHAR_WIDTH * scale, 0));
-        }
-    }
-}
-
-pub fn render_cursor(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, scale: f32) void {
-    const r: u8 = @intCast((color >> 16) & 0xff);
-    const g: u8 = @intCast((color >> 8) & 0xff);
-    const b: u8 = @intCast((color >> 0) & 0xff);
-    const a: u8 = @intCast((color >> 24) & 0xff);
-    _ = sdl.SDL_SetRenderDrawColor(renderer, r, g, b, a);
-
-    const x: i32 = buffer.cursor_pos.x;
-    const y: i32 = buffer.cursor_pos.y;
-
-    const char_width: i32 = @intFromFloat(FONT_CHAR_WIDTH * scale);
-    const char_height: i32 = @intFromFloat(FONT_CHAR_HEIGHT * scale);
-    const fixed_g: i32 = 4;
-    if (buffer.cursor_pos.cmp(&buffer.mark_pos) == 1) {
-        const bottom_side: sdl.SDL_Rect = .{
-            .x = x * char_width - @divTrunc(char_width, 2),
-            .y = y * char_height + char_height - fixed_g,
-            .w = @divTrunc(char_width, 2),
-            .h = fixed_g,
-        };
-        const right_side: sdl.SDL_Rect = .{
-            .x = x * char_width,
-            .y = y * char_height,
-            .w = fixed_g,
-            .h = char_height,
-        };
-        _ = sdl.SDL_RenderFillRect(renderer, &bottom_side);
-        _ = sdl.SDL_RenderFillRect(renderer, &right_side);
-    } else {
-        const left_side: sdl.SDL_Rect = .{
-            .x = x * char_width,
-            .y = y * char_height,
-            .w = fixed_g,
-            .h = char_height,
-        };
-        const top_side: sdl.SDL_Rect = .{
-            .x = x * char_width,
-            .y = y * char_height,
-            .w = @divTrunc(char_width, 2),
-            .h = fixed_g,
-        };
-        _ = sdl.SDL_RenderFillRect(renderer, &top_side);
-        _ = sdl.SDL_RenderFillRect(renderer, &left_side);
-    }
-}
-
-pub fn render_mark(renderer: *sdl.SDL_Renderer, buffer: Buffer, color: u32, scale: f32) void {
-    const r: u8 = @intCast((color >> 16) & 0xff);
-    const g: u8 = @intCast((color >> 8) & 0xff);
-    const b: u8 = @intCast((color >> 0) & 0xff);
-    const a: u8 = @intCast((color >> 24) & 0xff);
-    _ = sdl.SDL_SetRenderDrawColor(renderer, r, g, b, a);
-
-    const char_width: i32 = @intFromFloat(FONT_CHAR_WIDTH * scale);
-    const char_height: i32 = @intFromFloat(FONT_CHAR_HEIGHT * scale);
-    const fixed_g: i32 = 4;
-    const x = buffer.mark_pos.x;
-    const y = buffer.mark_pos.y;
-    if (buffer.cursor_pos.cmp(&buffer.mark_pos) == -1) {
-        const bottom_side: sdl.SDL_Rect = .{
-            .x = x * char_width - @divTrunc(char_width, 2),
-            .y = y * char_height + char_height - fixed_g,
-            .w = @divTrunc(char_width, 2),
-            .h = fixed_g,
-        };
-        const right_side: sdl.SDL_Rect = .{
-            .x = x * char_width,
-            .y = y * char_height,
-            .w = fixed_g,
-            .h = char_height,
-        };
-        _ = sdl.SDL_RenderFillRect(renderer, &bottom_side);
-        _ = sdl.SDL_RenderFillRect(renderer, &right_side);
-    } else {
-        const left_side: sdl.SDL_Rect = .{
-            .x = x * char_width,
-            .y = y * char_height,
-            .w = fixed_g,
-            .h = char_height,
-        };
-        const top_side: sdl.SDL_Rect = .{
-            .x = x * char_width,
-            .y = y * char_height,
-            .w = @divTrunc(char_width, 2),
-            .h = fixed_g,
-        };
-        _ = sdl.SDL_RenderFillRect(renderer, &top_side);
-        _ = sdl.SDL_RenderFillRect(renderer, &left_side);
-    }
-}
-
-
-
 pub fn main() !void {
     if (__DEBUG__) {
         if (TARGET_OS == .windows) {
@@ -260,7 +118,7 @@ pub fn main() !void {
     app.graphics_ctx.vk_appdata.arena = lhmem.make_arena((1 << 10) * 100);
     try lhvk.init_vulkan(&app.graphics_ctx);
     var arr = std.ArrayList(u8).init(allocator);
-    var buffer: Buffer = Buffer {
+    var buffer: Buffer = Buffer{
         .arena = lhmem.make_arena(1 << 10),
         .cursor_pos = BufferPos2D.init(0, 0),
         .global_cursor_pos = 0,
