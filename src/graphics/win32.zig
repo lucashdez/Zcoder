@@ -1,5 +1,4 @@
 const std = @import("std");
-const sdl = @cImport(@cInclude("SDL2/SDL.h"));
 const raw = @import("../os/win32/win32/everything.zig");
 const u = @import("lhvk_utils.zig");
 const e = @import("windowing/events.zig");
@@ -18,30 +17,27 @@ fn customproc(
     return raw.DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
-
-
 pub const Window = struct {
-    handle: ?*sdl.SDL_Window,
+    handle: ?*i32,
     instance: ?*anyopaque align(1),
-    surface:  ?*anyopaque align(1),
+    surface: ?*anyopaque align(1),
     display: ?*anyopaque,
     width: u32,
     height: u32,
     msg: raw.MSG,
     event: ?e.EventType,
 
-    pub fn get_events(window: *Window)
-    void
-    {
-        if (raw.PeekMessageW(&window.msg, null, 0, 0, raw.PM_REMOVE) > 0)
-        {
+    pub fn get_events(window: *Window) void {
+        if (raw.PeekMessageW(&window.msg, null, 0, 0, raw.PM_REMOVE) > 0) {
             var handled = false;
             _ = raw.TranslateMessage(&window.msg);
-            switch(window.msg.message)
-            {
+            switch (window.msg.message) {
                 raw.WM_NCLBUTTONDOWN => {
                     switch (window.msg.wParam) {
-                        raw.HTCLOSE => {handled=true; raw.PostQuitMessage(0);},
+                        raw.HTCLOSE => {
+                            handled = true;
+                            raw.PostQuitMessage(0);
+                        },
                         raw.HTLEFT => u.info("Left resize edge", .{}),
                         raw.HTRIGHT => u.info("Right resize edge", .{}),
                         raw.HTTOP => u.info("Top resize edge", .{}),
@@ -53,29 +49,40 @@ pub const Window = struct {
                         else => u.info("Non-client area clicked: {}", .{window.msg.wParam}),
                     }
                 },
-                raw.WM_CLOSE => {u.info("CLOSE", .{}); handled = true;},
-                raw.WM_SIZE => {u.info("SIZE", .{});
+                raw.WM_CLOSE => {
+                    u.info("CLOSE", .{});
+                    handled = true;
+                },
+                raw.WM_SIZE => {
+                    u.info("SIZE", .{});
                     const width: i32 = @intCast(window.msg.lParam & 0xFFFF); // Low word (width)
                     const height: i32 = @intCast((window.msg.lParam >> 16) & 0xFFFF); // High word (height)
-                    u.info("Window resized: {}x{}", .{width, height});
+                    u.info("Window resized: {}x{}", .{ width, height });
                 },
                 raw.WM_PAINT => {},
-                raw.WM_DESTROY => {u.info("DESTROY", .{});},
-                raw.WM_QUIT => {window.event = .E_QUIT; handled = true;},
+                raw.WM_DESTROY => {
+                    u.info("DESTROY", .{});
+                },
+                raw.WM_QUIT => {
+                    window.event = .E_QUIT;
+                    handled = true;
+                },
                 raw.WM_SIZING => {
                     u.info("Resizing window interactively: {}", .{window.msg.wParam});
                 },
                 raw.WM_MOUSEMOVE => {
                     const x: i32 = @intCast(window.msg.lParam & 0xFFFF); // Low word (width)
                     const y: i32 = @intCast((window.msg.lParam >> 16) & 0xFFFF); // High word (height)
-                    u.info("MOUSE: {}x{}", .{x, y});
+                    u.info("MOUSE: {}x{}", .{ x, y });
                 },
                 raw.WM_NCMOUSEMOVE => {
                     const x: i32 = @intCast(window.msg.lParam & 0xFFFF); // Low word (width)
                     const y: i32 = @intCast((window.msg.lParam >> 16) & 0xFFFF); // High word (height)
-                    u.info("NCMOUSE: {}x{}", .{x, y});
+                    u.info("NCMOUSE: {}x{}", .{ x, y });
                 },
-                else => {u.warn("Not handled: {}", .{window.msg.message});},
+                else => {
+                    u.warn("Not handled: {}", .{window.msg.message});
+                },
             }
             if (!handled) _ = raw.DefWindowProcW(window.msg.hwnd, window.msg.message, window.msg.wParam, window.msg.lParam);
         }
@@ -101,25 +108,16 @@ pub fn create_window(comptime name: []const u8) Window {
         .DLGFRAME = 1,
         .BORDER = 1,
     };
-    const hwnd_opt: ?raw.HWND = raw.CreateWindowExW(
-        .{},
-        class_name,
-        W("Learn to program"),
-        styles,
-        raw.CW_USEDEFAULT, raw.CW_USEDEFAULT, width, height,
-        null,
-        null,
-        hinstance,
-        null);
+    const hwnd_opt: ?raw.HWND = raw.CreateWindowExW(.{}, class_name, W("Learn to program"), styles, raw.CW_USEDEFAULT, raw.CW_USEDEFAULT, width, height, null, null, hinstance, null);
     assert(hwnd_opt != null);
     const hwnd = hwnd_opt.?;
 
     _ = raw.ShowWindow(hwnd, raw.SW_SHOW);
-    return Window {
+    return Window{
         .handle = null,
         .instance = hinstance,
-        .surface =  hwnd,
-        .display =  null,
+        .surface = hwnd,
+        .display = null,
         .width = width,
         .height = height,
         .msg = std.mem.zeroes(raw.MSG),

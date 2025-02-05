@@ -25,28 +25,10 @@ const Application = struct {
     graphics_ctx: lhvk.LhvkGraphicsCtx,
 };
 
-const BufferPos2D = struct {
-    x: i32,
-    y: i32,
-
-    pub fn init(x: i32, y: i32) BufferPos2D {
-        return BufferPos2D{ .x = x, .y = y };
-    }
-
-    pub fn cmp(self: *const BufferPos2D, b: *const BufferPos2D) i32 {
-        if (self.y == b.y) {
-            return if (self.x >= b.x) 1 else -1;
-        } else {
-            return if (self.y >= b.y) 1 else -1;
-        }
-    }
-};
-
 const Buffer = struct {
     arena: Arena,
-    cursor_pos: BufferPos2D,
-    global_cursor_pos: usize,
-    mark_pos: BufferPos2D,
+    cursor_pos: usize,
+    mark_pos: usize,
     buffer: *std.ArrayList(u8),
     file_name: ?[]const u8,
     file: ?std.fs.File,
@@ -57,8 +39,7 @@ const Buffer = struct {
         };
         if (buffer.file) |file| {
             buffer.file_name = path;
-            buffer.cursor_pos = .{ .x = 0, .y = 0 };
-            buffer.global_cursor_pos = 0;
+            buffer.cursor_pos = 0;
             buffer.mark_pos = buffer.cursor_pos;
             var buffered = std.io.bufferedReader(file.reader());
             const metadata = try file.metadata();
@@ -120,9 +101,8 @@ pub fn main() !void {
     var arr = std.ArrayList(u8).init(allocator);
     var buffer: Buffer = Buffer{
         .arena = lhmem.make_arena(1 << 10),
-        .cursor_pos = BufferPos2D.init(0, 0),
-        .global_cursor_pos = 0,
-        .mark_pos = BufferPos2D.init(2, 0),
+        .cursor_pos = 0,
+        .mark_pos = 0,
         .buffer = &arr,
         .file_name = null,
         .file = null,

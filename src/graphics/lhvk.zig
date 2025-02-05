@@ -7,6 +7,7 @@ const assert = std.debug.assert;
 const u = @import("lhvk_utils.zig");
 const la = @import("../lin_alg/la.zig");
 const TARGET_OS = @import("builtin").os.tag;
+const Swapchain = @import("vulkan/swapchain.zig").Swapchain;
 
 pub const LhvkGraphicsCtx = struct {
     window: Window,
@@ -23,6 +24,7 @@ pub const VkApp = struct {
     graphics_queue: vk.VkQueue,
     present_queue: vk.VkQueue,
     surface: vk.VkSurfaceKHR,
+    lhswapchain: Swapchain,
     swapchain: vk.VkSwapchainKHR,
     swapchain_images: []vk.VkImage,
     format: vk.VkFormat,
@@ -831,6 +833,7 @@ pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
     _ = try pick_physical_device(ctx);
     assert(ctx.vk_appdata.physical_device != null);
     create_logical_device(ctx);
+    ctx.vk_app.lhswapchain = try Swapchain.init(ctx);
     try create_swapchain(ctx);
     try create_image_views(ctx);
     try create_render_pass(ctx);
