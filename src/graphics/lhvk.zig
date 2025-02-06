@@ -8,12 +8,15 @@ const u = @import("lhvk_utils.zig");
 const la = @import("../lin_alg/la.zig");
 const TARGET_OS = @import("builtin").os.tag;
 const Swapchain = @import("vulkan/swapchain.zig").Swapchain;
+const v = @import("drawing/vertex.zig");
+
 
 pub const LhvkGraphicsCtx = struct {
     window: Window,
     vk_app: VkApp,
     vk_appdata: VkAppData,
     current_image: u32,
+    current_vertex_group: v.VertexList,
 };
 
 pub const VkApp = struct {
@@ -825,6 +828,15 @@ fn recreate_swapchain(ctx: *LhvkGraphicsCtx) void {
     create_framebuffers(ctx);
 }
 
+fn create_vertex_buffer(ctx: *LhvkGraphicsCtx) void {
+    _ = ctx;
+    var buffer_info = std.mem.zeroes(vk.VkBufferCreateInfo);
+    buffer_info.sType = vk.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_info.size = (1 << 10) * 20;
+    buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    // TODO: CONTINUE
+}
+
 pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
     ctx.vk_app.max_frames_in_flight = 2;
     _ = try create_instance(&ctx.vk_app, &ctx.vk_appdata);
@@ -840,6 +852,7 @@ pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
     try create_graphics_pipeline(ctx);
     create_framebuffers(ctx);
     create_command_pool(ctx);
+    create_vertex_buffer(ctx);
     create_command_buffer(ctx);
     create_sync_objects(ctx);
 }

@@ -25,13 +25,30 @@ pub const Window = struct {
     width: u32,
     height: u32,
     msg: raw.MSG,
-    event: ?e.EventType,
+    event: ?e.Event,
 
     pub fn get_events(window: *Window) void {
         if (raw.PeekMessageW(&window.msg, null, 0, 0, raw.PM_REMOVE) > 0) {
             var handled = false;
             _ = raw.TranslateMessage(&window.msg);
             switch (window.msg.message) {
+                raw.WM_SYSKEYDOWN => {},
+                raw.WM_SYSKEYUP => {},
+                raw.WM_COMMAND => {},
+                raw.WM_KEYDOWN => {
+                    // TODO: Handle WM_CHAR;
+                    _ = raw.PeekMessageW(&window.msg, null, 0, 0, raw.PM_REMOVE);
+                    if (window.msg.message == raw.WM_CHAR) {u.warn("char pressed",.{});}
+                    switch(window.msg.wParam) {
+                        0x61 => {window.event.?.t = .E_KEY; window.event.?.key = .A;},
+                        else => {
+                            u.warn("KEY not handled = {}", .{window.msg.wParam});
+                        }
+                    }
+                },
+                raw.WM_KEYUP => {
+                    _ = raw.PeekMessageW(&window.msg, null, 0, 0, raw.PM_REMOVE);
+                },
                 raw.WM_NCLBUTTONDOWN => {
                     switch (window.msg.wParam) {
                         raw.HTCLOSE => {
@@ -64,7 +81,7 @@ pub const Window = struct {
                     u.info("DESTROY", .{});
                 },
                 raw.WM_QUIT => {
-                    window.event = .E_QUIT;
+                    window.event.?.t = .E_QUIT;
                     handled = true;
                 },
                 raw.WM_SIZING => {
@@ -121,6 +138,6 @@ pub fn create_window(comptime name: []const u8) Window {
         .width = width,
         .height = height,
         .msg = std.mem.zeroes(raw.MSG),
-        .event = null,
+        .event = std.mem.zeroes(e.Event),
     };
 }

@@ -9,16 +9,13 @@ const Arena = lhmem.Arena;
 const lhvk = @import("graphics/lhvk.zig");
 const windowing = if (@import("builtin").os.tag == .windows) @import("graphics/win32.zig") else @import("graphics/wayland.zig");
 const e = @import("graphics/windowing/events.zig");
-
 const la = @import("lin_alg/la.zig");
-const FONT_ROWS = 7;
-const FONT_COLS = 18;
-const FONT_WIDTH = 128;
-const FONT_HEIGHT = 64;
-const FONT_CHAR_WIDTH = FONT_WIDTH / FONT_COLS;
-const FONT_CHAR_HEIGHT = FONT_HEIGHT / FONT_ROWS;
-
 const print = std.debug.print;
+const draw = @import("graphics/drawing/primitives.zig");
+const v = @import("graphics/drawing/vertex.zig");
+const VertexList = v.VertexList;
+
+
 extern fn putenv(string: [*:0]const u8) c_int;
 
 const Application = struct {
@@ -29,9 +26,21 @@ const Buffer = struct {
     arena: Arena,
     cursor_pos: usize,
     mark_pos: usize,
-    buffer: *std.ArrayList(u8),
+    buffer: std.ArrayList(u8),
     file_name: ?[]const u8,
     file: ?std.fs.File,
+
+    pub fn create_buffer() Buffer {
+        return Buffer
+        {
+            .arena = lhmem.make_arena((1<<10) * 24),
+            .cursor_pos = 0,
+            .mark_pos = 0,
+            .buffer = std.ArrayList(u8).init(std.heap.page_allocator),
+            .file_name = null,
+            .file = null,
+        };
+    }
 
     pub fn open_or_create_file(buffer: *Buffer, path: []const u8) !void {
         buffer.file = std.fs.cwd().openFile(path, .{ .mode = .read_write, .lock = .none }) catch blk: {
@@ -44,7 +53,6 @@ const Buffer = struct {
             var buffered = std.io.bufferedReader(file.reader());
             const metadata = try file.metadata();
             try buffer.buffer.resize(metadata.size());
-            print("{}", .{metadata.size()});
             _ = try buffered.read(buffer.buffer.items);
         }
     }
@@ -56,6 +64,26 @@ const Buffer = struct {
         }
     }
 };
+
+fn write_char(buf: *Buffer, c: u8) void {
+    buf.buffer.insert(buf.cursor_pos, c) catch {};
+    buf.cursor_pos += 1;
+}
+
+fn handle_key_input(buf: *Buffer, event: e.Event) void {
+    switch(event.key) {
+        .A => {
+            if (event.mods & 0b010 == 1) {
+                write_char(buf, 'A');
+            } else {
+                write_char(buf, 'a');
+            }
+        },
+
+        else => {}
+    }
+    print("{s}\n", .{buf.buffer.items});
+}
 
 pub fn line_length(text: *const std.ArrayList(u8), line: usize) usize {
     var len: usize = 0;
@@ -90,35 +118,35 @@ pub fn main() !void {
     _ = Font;
     _ = FontAttributes;
 
-    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    const allocator = std.heap.page_allocator;
-    defer arena.deinit();
     var app: Application = undefined;
     app.graphics_ctx.window = windowing.create_window("algo");
     app.graphics_ctx.vk_app.arena = lhmem.make_arena((1 << 10) * 100);
     app.graphics_ctx.vk_appdata.arena = lhmem.make_arena((1 << 10) * 100);
     try lhvk.init_vulkan(&app.graphics_ctx);
-    var arr = std.ArrayList(u8).init(allocator);
-    var buffer: Buffer = Buffer{
-        .arena = lhmem.make_arena(1 << 10),
-        .cursor_pos = 0,
-        .mark_pos = 0,
-        .buffer = &arr,
-        .file_name = null,
-        .file = null,
-    };
-    try buffer.open_or_create_file("main.c");
+    var buffer: Buffer = Buffer.create_buffer();
+
     var quit: bool = false;
     while (!quit) {
-        if (lhvk.prepare_frame(&app.graphics_ctx)) continue;
-        lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
+        app.graphics_ctx.current_vertex_group = VertexList {
+            .arena = lhmem.make_arena((1 << 10) * 20),
+            .first = null,
+            .last = null,
+
+        };
+        app.graphics_ctx.window.event.?.t = .E_NONE;
         app.graphics_ctx.window.get_events();
         if (app.graphics_ctx.window.event) |event| {
-            switch (event) {
+            switch (event.t) {
                 .E_QUIT => quit = true,
+                .E_KEY => {handle_key_input(&buffer, event);},
                 else => {},
             }
         }
+        app.graphics_ctx.window.event.?.t = .E_NONE;
+        const rect = draw.Rect {.x = 0, .y = 0, .w = 12, .h = 12};
+        draw.drawp_rectangle(&app.graphics_ctx, rect, draw.Color.create(0xff0000ff));
+        if (lhvk.prepare_frame(&app.graphics_ctx)) continue;
+        lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
         lhvk.end_command_buffer_rendering(&app.graphics_ctx);
     }
     try buffer.save_file();
