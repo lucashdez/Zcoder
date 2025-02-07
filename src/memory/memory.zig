@@ -55,3 +55,7 @@ pub fn scratch_block() Arena {
     };
 }
 
+pub fn get_bytes(comptime T: type, count: usize, data: [*]T) []u8 {
+    const size = count * @sizeOf(T);
+    return @as([*]u8, @ptrCast(data))[0..size];
+}

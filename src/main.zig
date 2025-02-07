@@ -131,7 +131,6 @@ pub fn main() !void {
             .arena = lhmem.make_arena((1 << 10) * 20),
             .first = null,
             .last = null,
-
         };
         app.graphics_ctx.window.event.?.t = .E_NONE;
         app.graphics_ctx.window.get_events();
@@ -143,8 +142,10 @@ pub fn main() !void {
             }
         }
         app.graphics_ctx.window.event.?.t = .E_NONE;
-        const rect = draw.Rect {.x = 0, .y = 0, .w = 12, .h = 12};
+        const rect = draw.Rect {.x = 150, .y = 150, .w = 100, .h = 100};
         draw.drawp_rectangle(&app.graphics_ctx, rect, draw.Color.create(0xff0000ff));
+        const rect2 = draw.Rect {.x = 400, .y = 400, .w = 600, .h = 600};
+        draw.drawp_rectangle(&app.graphics_ctx, rect2, draw.Color.create(0xffffffff));
         if (lhvk.prepare_frame(&app.graphics_ctx)) continue;
         lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
         lhvk.end_command_buffer_rendering(&app.graphics_ctx);

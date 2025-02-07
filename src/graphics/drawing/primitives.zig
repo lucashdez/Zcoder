@@ -41,12 +41,13 @@ pub fn drawp_triangle(ctx: *LhvkGraphicsCtx, pos: .{usize, usize, usize}) void {
 }
 
 pub fn drawp_rectangle(ctx: *LhvkGraphicsCtx, r: Rect, color: Color) void {
-    var top_left = Vertex.init(la.vec2f(la.normalize(f32 ,r.x, @floatFromInt(ctx.window.width)), la.normalize(f32 ,r.y, @floatFromInt(ctx.window.height))), color);
-    var top_right = Vertex.init(la.vec2f(la.normalize(f32 ,r.x + r.w, @floatFromInt(ctx.window.width)), la.normalize(f32 ,r.y, @floatFromInt(ctx.window.height))), color);
-    var bottom_left = Vertex.init(la.vec2f(la.normalize(f32 ,r.x, @floatFromInt(ctx.window.width)), la.normalize(f32 ,r.y + r.h, @floatFromInt(ctx.window.height))), color);
-    var bottom_right = Vertex.init(la.vec2f(la.normalize(f32 ,r.x + r.h, @floatFromInt(ctx.window.width)), la.normalize(f32 ,r.y + r.h, @floatFromInt(ctx.window.height))), color);
-    ctx.current_vertex_group.sll_push_back(&top_left);
-    ctx.current_vertex_group.sll_push_back(&top_right);
-    ctx.current_vertex_group.sll_push_back(&bottom_left);
-    ctx.current_vertex_group.sll_push_back(&bottom_right);
+    // TODO: STACK FREES THIS THING
+    const top_left = Vertex.init(&ctx.current_vertex_group.arena,la.vec2f(la.normalize(f32 ,r.x, @floatFromInt(ctx.window.width)), la.normalize(f32 ,r.y, @floatFromInt(ctx.window.height))), color);
+    const top_right = Vertex.init(&ctx.current_vertex_group.arena,la.vec2f(la.normalize(f32 ,r.x + r.w, @floatFromInt(ctx.window.width)), la.normalize(f32 ,r.y, @floatFromInt(ctx.window.height))), color);
+    const bottom_left = Vertex.init(&ctx.current_vertex_group.arena,la.vec2f(la.normalize(f32 ,r.x, @floatFromInt(ctx.window.width)), la.normalize(f32 ,r.y + r.h, @floatFromInt(ctx.window.height))), color);
+    const bottom_right = Vertex.init(&ctx.current_vertex_group.arena,la.vec2f(la.normalize(f32 ,r.x + r.h, @floatFromInt(ctx.window.width)), la.normalize(f32 ,r.y + r.h, @floatFromInt(ctx.window.height))), color);
+    ctx.current_vertex_group.sll_push_back(top_left);
+    ctx.current_vertex_group.sll_push_back(top_right);
+    ctx.current_vertex_group.sll_push_back(bottom_left);
+    ctx.current_vertex_group.sll_push_back(bottom_right);
 }

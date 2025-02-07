@@ -38,6 +38,9 @@ pub const VkApp = struct {
     graphics_pipeline: vk.VkPipeline,
     swapchain_framebuffers: []vk.VkFramebuffer,
     command_pool: vk.VkCommandPool,
+    vertex_buffer: vk.VkBuffer,
+    vertex_buffer_size: u64,
+    vertex_buffer_mem: vk.VkDeviceMemory,
     command_buffer: vk.VkCommandBuffer,
     image_available_sem: vk.VkSemaphore,
     render_finished_sem: vk.VkSemaphore,
@@ -520,10 +523,13 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
 
     var vertex_input_info: vk.VkPipelineVertexInputStateCreateInfo = std.mem.zeroes(vk.VkPipelineVertexInputStateCreateInfo);
     vertex_input_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-    vertex_input_info.vertexBindingDescriptionCount = 0;
-    vertex_input_info.pVertexBindingDescriptions = null;
-    vertex_input_info.vertexAttributeDescriptionCount = 0;
-    vertex_input_info.pVertexAttributeDescriptions = null;
+
+    var binding_description = v.VulkanVertex.get_binding_description();
+    const attribute_description = v.VulkanVertex.get_attribute_description(&ctx.vk_app.arena);
+    vertex_input_info.vertexBindingDescriptionCount = 1;
+    vertex_input_info.vertexAttributeDescriptionCount = @intCast(attribute_description.len);
+    vertex_input_info.pVertexBindingDescriptions = &binding_description;
+    vertex_input_info.pVertexAttributeDescriptions = attribute_description.ptr;
 
     var input_assembly_create_info: vk.VkPipelineInputAssemblyStateCreateInfo = std.mem.zeroes(vk.VkPipelineInputAssemblyStateCreateInfo);
     input_assembly_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
@@ -743,11 +749,45 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     rp_begin_info.clearValueCount = 1;
     rp_begin_info.pClearValues = &clear_value;
 
+
+
+
     vk.vkCmdBeginRenderPass(app.command_buffer, &rp_begin_info, vk.VK_SUBPASS_CONTENTS_INLINE);
     vk.vkCmdBindPipeline(app.command_buffer, vk.VK_PIPELINE_BIND_POINT_GRAPHICS, app.graphics_pipeline);
 
-    // DELETE LATER
-    vk.vkCmdDraw(app.command_buffer, 3, 1, 0, 0);
+    var data: ?*anyopaque = undefined;
+    //var scratch = lhmem.make_arena(app.vertex_buffer_size);
+    _ = vk.vkMapMemory(app.device, app.vertex_buffer_mem, 0, app.vertex_buffer_size, 0, &data);
+
+    const data_view: []u8 = @as([*]u8, @ptrCast(data))[0..app.vertex_buffer_size];
+    // const v1 : v.RawVertex = .{
+    //     .pos = .{0.0, -0.5},
+    //     .color = .{1.0,1.0,1.0,1.0}
+    // };
+    // const v2 : v.RawVertex = .{
+    //     .pos = .{0.5, 0.5},
+    //     .color = .{1.0,1.0,1.0,1.0}
+    // };
+    // const v3 : v.RawVertex = .{
+    //     .pos = .{-0.5, 0.5},
+    //     .color = .{1.0,1.0,1.0,1.0}
+    // };
+    // const v4 : v.RawVertex = .{
+    //     .pos = .{-0.7, 0.7},
+    //     .color = .{1.0,0.0,0.0,1.0}
+    // };
+
+    // const verticesx = [_]v.RawVertex{v1, v2, v3, v4};
+
+    // TODO: LOOK AT WHY I cant print the current vertex group but the group above works fine
+    const vertices = ctx.current_vertex_group.compress(&ctx.current_vertex_group.arena);
+    const vertices_bytes = lhmem.get_bytes(v.RawVertex, vertices.len, @constCast(vertices.ptr));
+    std.mem.copyForwards(u8, data_view, vertices_bytes);
+    _ = vk.vkUnmapMemory(app.device, app.vertex_buffer_mem);
+
+    const offsets: u64 = 0;
+    vk.vkCmdBindVertexBuffers(app.command_buffer, 0, 1, &app.vertex_buffer, &offsets);
+    vk.vkCmdDraw(app.command_buffer, @intCast(vertices.len) ,1,0,0);
 }
 
 pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
@@ -828,13 +868,42 @@ fn recreate_swapchain(ctx: *LhvkGraphicsCtx) void {
     create_framebuffers(ctx);
 }
 
+fn find_memory_type(ctx: *LhvkGraphicsCtx, filter: u32, props: vk.VkMemoryPropertyFlags)
+u32
+{
+    _ = filter;
+    var mem_props: vk.VkPhysicalDeviceMemoryProperties = undefined;
+    vk.vkGetPhysicalDeviceMemoryProperties(ctx.vk_appdata.physical_device, &mem_props);
+    for (0..mem_props.memoryTypeCount) |i|
+    {
+        if ((mem_props.memoryTypes[i].propertyFlags & props) == props)
+        return @intCast(i);
+    }
+    return 0;
+}
+
 fn create_vertex_buffer(ctx: *LhvkGraphicsCtx) void {
-    _ = ctx;
+    var app: *VkApp = &ctx.vk_app;
     var buffer_info = std.mem.zeroes(vk.VkBufferCreateInfo);
     buffer_info.sType = vk.VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     buffer_info.size = (1 << 10) * 20;
-    buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-    // TODO: CONTINUE
+    app.vertex_buffer_size = buffer_info.size;
+    buffer_info.usage = vk.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+    buffer_info.sharingMode = vk.VK_SHARING_MODE_EXCLUSIVE;
+
+    if (vk.vkCreateBuffer(app.device, &buffer_info, null, &app.vertex_buffer) != vk.VK_SUCCESS) u.err("CANNOT CREATE VERTEX BUFFER", .{});
+
+    var mem_reqs = std.mem.zeroes(vk.VkMemoryRequirements);
+    _ = vk.vkGetBufferMemoryRequirements(app.device, app.vertex_buffer, &mem_reqs);
+
+    var alloc_info: vk.VkMemoryAllocateInfo = std.mem.zeroes(vk.VkMemoryAllocateInfo);
+    alloc_info.sType = vk.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    alloc_info.allocationSize = mem_reqs.size;
+    alloc_info.memoryTypeIndex = find_memory_type(ctx, mem_reqs.memoryTypeBits, vk.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+    if (vk.vkAllocateMemory(app.device, &alloc_info, null, &app.vertex_buffer_mem) != vk.VK_SUCCESS) u.err("CANNOT ALLOCATE MEMORY", .{});
+
+    _ = vk.vkBindBufferMemory(app.device, app.vertex_buffer, app.vertex_buffer_mem, 0);
 }
 
 pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
