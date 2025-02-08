@@ -15,7 +15,6 @@ const draw = @import("graphics/drawing/primitives.zig");
 const v = @import("graphics/drawing/vertex.zig");
 const VertexList = v.VertexList;
 
-
 extern fn putenv(string: [*:0]const u8) c_int;
 
 const Application = struct {
@@ -31,9 +30,8 @@ const Buffer = struct {
     file: ?std.fs.File,
 
     pub fn create_buffer() Buffer {
-        return Buffer
-        {
-            .arena = lhmem.make_arena((1<<10) * 24),
+        return Buffer{
+            .arena = lhmem.make_arena((1 << 10) * 24),
             .cursor_pos = 0,
             .mark_pos = 0,
             .buffer = std.ArrayList(u8).init(std.heap.page_allocator),
@@ -71,7 +69,7 @@ fn write_char(buf: *Buffer, c: u8) void {
 }
 
 fn handle_key_input(buf: *Buffer, event: e.Event) void {
-    switch(event.key) {
+    switch (event.key) {
         .A => {
             if (event.mods & 0b010 == 1) {
                 write_char(buf, 'A');
@@ -80,7 +78,7 @@ fn handle_key_input(buf: *Buffer, event: e.Event) void {
             }
         },
 
-        else => {}
+        else => {},
     }
     print("{s}\n", .{buf.buffer.items});
 }
@@ -122,33 +120,35 @@ pub fn main() !void {
     app.graphics_ctx.window = windowing.create_window("algo");
     app.graphics_ctx.vk_app.arena = lhmem.make_arena((1 << 10) * 100);
     app.graphics_ctx.vk_appdata.arena = lhmem.make_arena((1 << 10) * 100);
-    try lhvk.init_vulkan(&app.graphics_ctx);
-    var buffer: Buffer = Buffer.create_buffer();
+    //  try lhvk.init_vulkan(&app.graphics_ctx);
+    //  var buffer: Buffer = Buffer.create_buffer();
 
-    var quit: bool = false;
-    while (!quit) {
-        app.graphics_ctx.current_vertex_group = VertexList {
-            .arena = lhmem.make_arena((1 << 10) * 20),
-            .first = null,
-            .last = null,
-        };
-        app.graphics_ctx.window.event.?.t = .E_NONE;
-        app.graphics_ctx.window.get_events();
-        if (app.graphics_ctx.window.event) |event| {
-            switch (event.t) {
-                .E_QUIT => quit = true,
-                .E_KEY => {handle_key_input(&buffer, event);},
-                else => {},
-            }
-        }
-        app.graphics_ctx.window.event.?.t = .E_NONE;
-        const rect = draw.Rect {.x = 150, .y = 150, .w = 100, .h = 100};
-        draw.drawp_rectangle(&app.graphics_ctx, rect, draw.Color.create(0xff0000ff));
-        const rect2 = draw.Rect {.x = 400, .y = 400, .w = 600, .h = 600};
-        draw.drawp_rectangle(&app.graphics_ctx, rect2, draw.Color.create(0xffffffff));
-        if (lhvk.prepare_frame(&app.graphics_ctx)) continue;
-        lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
-        lhvk.end_command_buffer_rendering(&app.graphics_ctx);
-    }
-    try buffer.save_file();
+    //  var quit: bool = false;
+    //  while (!quit) {
+    //      app.graphics_ctx.current_vertex_group = VertexList{
+    //          .arena = lhmem.make_arena((1 << 10) * 20),
+    //          .first = null,
+    //          .last = null,
+    //      };
+    //      app.graphics_ctx.window.get_events();
+    //      if (app.graphics_ctx.window.event) |event| {
+    //          switch (event.t) {
+    //              .E_QUIT => quit = true,
+    //              .E_KEY => {
+    //                  handle_key_input(&buffer, event);
+    //              },
+    //              else => {},
+    //          }
+    //          app.graphics_ctx.window.event.?.t = .E_NONE;
+    //      }
+    //      app.graphics_ctx.window.event.?.t = .E_NONE;
+    //      const rect = draw.Rect{ .x = 150, .y = 150, .w = 100, .h = 100 };
+    //      draw.drawp_rectangle(&app.graphics_ctx, rect, draw.Color.create(0xff0000ff));
+    //      const rect2 = draw.Rect{ .x = 400, .y = 400, .w = 600, .h = 600 };
+    //      draw.drawp_rectangle(&app.graphics_ctx, rect2, draw.Color.create(0xffffffff));
+    //      if (lhvk.prepare_frame(&app.graphics_ctx)) continue;
+    //      lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
+    //      lhvk.end_command_buffer_rendering(&app.graphics_ctx);
+    //  }
+    //  try buffer.save_file();
 }
