@@ -51,7 +51,7 @@ pub const Window = struct {
     raw: WaylandProps,
     width: u32,
     height: u32,
-    event: ?e.EventType,
+    event: ?e.Event,
     pub fn get_events(window: *Window) void {
         _ = window;
     }
