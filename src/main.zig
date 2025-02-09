@@ -120,35 +120,35 @@ pub fn main() !void {
     app.graphics_ctx.window = windowing.create_window("algo");
     app.graphics_ctx.vk_app.arena = lhmem.make_arena((1 << 10) * 100);
     app.graphics_ctx.vk_appdata.arena = lhmem.make_arena((1 << 10) * 100);
-    //  try lhvk.init_vulkan(&app.graphics_ctx);
-    //  var buffer: Buffer = Buffer.create_buffer();
+    try lhvk.init_vulkan(&app.graphics_ctx);
+    var buffer: Buffer = Buffer.create_buffer();
 
-    //  var quit: bool = false;
-    //  while (!quit) {
-    //      app.graphics_ctx.current_vertex_group = VertexList{
-    //          .arena = lhmem.make_arena((1 << 10) * 20),
-    //          .first = null,
-    //          .last = null,
-    //      };
-    //      app.graphics_ctx.window.get_events();
-    //      if (app.graphics_ctx.window.event) |event| {
-    //          switch (event.t) {
-    //              .E_QUIT => quit = true,
-    //              .E_KEY => {
-    //                  handle_key_input(&buffer, event);
-    //              },
-    //              else => {},
-    //          }
-    //          app.graphics_ctx.window.event.?.t = .E_NONE;
-    //      }
-    //      app.graphics_ctx.window.event.?.t = .E_NONE;
-    //      const rect = draw.Rect{ .x = 150, .y = 150, .w = 100, .h = 100 };
-    //      draw.drawp_rectangle(&app.graphics_ctx, rect, draw.Color.create(0xff0000ff));
-    //      const rect2 = draw.Rect{ .x = 400, .y = 400, .w = 600, .h = 600 };
-    //      draw.drawp_rectangle(&app.graphics_ctx, rect2, draw.Color.create(0xffffffff));
-    //      if (lhvk.prepare_frame(&app.graphics_ctx)) continue;
-    //      lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
-    //      lhvk.end_command_buffer_rendering(&app.graphics_ctx);
-    //  }
-    //  try buffer.save_file();
+    var quit: bool = false;
+    while (!quit) {
+        app.graphics_ctx.current_vertex_group = VertexList{
+            .arena = lhmem.make_arena((1 << 10) * 20),
+            .first = null,
+            .last = null,
+        };
+        app.graphics_ctx.window.get_events();
+        if (app.graphics_ctx.window.event) |event| {
+            switch (event.t) {
+                .E_QUIT => quit = true,
+                .E_KEY => {
+                    handle_key_input(&buffer, event);
+                },
+                else => {},
+            }
+            app.graphics_ctx.window.event.?.t = .E_NONE;
+        }
+        app.graphics_ctx.window.event.?.t = .E_NONE;
+        const rect = draw.Rect{ .x = 150, .y = 150, .w = 100, .h = 100 };
+        draw.drawp_rectangle(&app.graphics_ctx, rect, draw.Color.create(0xff0000ff));
+        const rect2 = draw.Rect{ .x = 400, .y = 400, .w = 600, .h = 600 };
+        draw.drawp_rectangle(&app.graphics_ctx, rect2, draw.Color.create(0xffffffff));
+        if (lhvk.prepare_frame(&app.graphics_ctx)) continue;
+        lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
+        lhvk.end_command_buffer_rendering(&app.graphics_ctx);
+    }
+    try buffer.save_file();
 }
