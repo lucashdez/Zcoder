@@ -7,7 +7,7 @@ const FontAttributes = Font.FontAttributes;
 const lhmem = @import("memory/memory.zig");
 const Arena = lhmem.Arena;
 const lhvk = @import("graphics/lhvk.zig");
-const windowing = if (@import("builtin").os.tag == .windows) @import("graphics/win32.zig") else @import("graphics/wayland.zig");
+const windowing = if (@import("builtin").os.tag == .windows) @import("graphics/win32.zig") else @import("graphics/x.zig");
 const e = @import("graphics/windowing/events.zig");
 const la = @import("lin_alg/la.zig");
 const print = std.debug.print;

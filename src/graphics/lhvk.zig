@@ -1,6 +1,6 @@
 const std = @import("std");
 const vk = @import("vk_api.zig").vk;
-const Window = if (@import("builtin").os.tag == .windows) @import("win32.zig").Window else @import("wayland.zig").Window;
+const Window = if (@import("builtin").os.tag == .windows) @import("win32.zig").Window else @import("x.zig").Window;
 const lhmem = @import("../memory/memory.zig");
 const Arena = lhmem.Arena;
 const assert = std.debug.assert;
@@ -184,11 +184,11 @@ fn create_instance(app: *VkApp, app_data: ?*VkAppData) VulkanInitError!void {
     var editable: [*][*c]const u8 = app.arena.push_array([*c]const u8, 5);
     editable[0] = vk.VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
     editable[1] = vk.VK_KHR_SURFACE_EXTENSION_NAME;
-    // TODO: wayland and xcb extensions
+    // TODO: xcb extensions
     if (TARGET_OS == .windows) {
         editable[2] = vk.VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
     } else {
-        editable[2] = vk.VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME;
+        editable[2] = vk.VK_KHR_XLIB_SURFACE_EXTENSION_NAME;
     }
     editable[3] = "VK_KHR_get_physical_device_properties2";
     editable[4] = vk.VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME;
@@ -937,12 +937,13 @@ fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp) void {
         const result = vk.vkCreateWin32SurfaceKHR(app.instance, &create_info, null, &app.surface);
         assert(result == vk.VK_SUCCESS);
     } else {
-        var create_info: vk.VkWaylandSurfaceCreateInfoKHR = .{
-            .sType = vk.VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR,
-            .display = @alignCast(@ptrCast(ctx.window.raw.display.?)),
-            .surface = @alignCast(@ptrCast(ctx.window.raw.surface.?)),
+        var create_info: vk.VkXlibSurfaceCreateInfoKHR = .{
+            .sType = vk.VK_STRUCTURE_TYPE_XLIB_SURFACE_CREATE_INFO_KHR,
+            .dpy = @alignCast(@ptrCast(ctx.window.raw.display.?)),
+            .window = 0,
         };
-        const result = vk.vkCreateWaylandSurfaceKHR(app.instance, &create_info, null, &app.surface);
+        //const result = vk.vkCreateXlibSurfaceKHR();
+        const result = vk.vkCreateXlibSurfaceKHR(app.instance, &create_info, null, &app.surface);
         assert(result == vk.VK_SUCCESS);
     }
 }
