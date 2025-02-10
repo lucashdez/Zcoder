@@ -524,8 +524,8 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     var vertex_input_info: vk.VkPipelineVertexInputStateCreateInfo = std.mem.zeroes(vk.VkPipelineVertexInputStateCreateInfo);
     vertex_input_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-    var binding_description = v.VulkanVertex.get_binding_description();
-    const attribute_description = v.VulkanVertex.get_attribute_description(&ctx.vk_app.arena);
+    var binding_description = v.get_binding_description();
+    const attribute_description = v.get_attribute_description(&ctx.vk_app.arena);
     vertex_input_info.vertexBindingDescriptionCount = 1;
     vertex_input_info.vertexAttributeDescriptionCount = @intCast(attribute_description.len);
     vertex_input_info.pVertexBindingDescriptions = &binding_description;
@@ -760,29 +760,30 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     _ = vk.vkMapMemory(app.device, app.vertex_buffer_mem, 0, app.vertex_buffer_size, 0, &data);
 
     const data_view: []u8 = @as([*]u8, @ptrCast(data))[0..app.vertex_buffer_size];
+        // 1: graphics.drawing.vertex.RawVertex{ .pos = { 1.25e-1, 1.6666667e-1 }, .color = { 1e0, 0e0, 0e0, 1e0 } },
+        // 2: graphics.drawing.vertex.RawVertex{ .pos = { 2.5e-1, 3.3333334e-1 }, .color = { 1e0, 0e0, 0e0, 1e0 } },
+        // 3: graphics.drawing.vertex.RawVertex{ .pos = { 3.75e-1, 5e-1 }, .color = { 1e0, 0e0, 0e0, 1e0 } }
     // const v1 : v.RawVertex = .{
-    //     .pos = .{0.0, -0.5},
+    //     .pos = .{0.125, 0.166},
     //     .color = .{1.0,1.0,1.0,1.0}
     // };
     // const v2 : v.RawVertex = .{
-    //     .pos = .{0.5, 0.5},
+    //     .pos = .{0.25, 0.33},
     //     .color = .{1.0,1.0,1.0,1.0}
     // };
     // const v3 : v.RawVertex = .{
-    //     .pos = .{-0.5, 0.5},
+    //     .pos = .{0.375, 0.5},
     //     .color = .{1.0,1.0,1.0,1.0}
     // };
-    // const v4 : v.RawVertex = .{
-    //     .pos = .{-0.7, 0.7},
-    //     .color = .{1.0,0.0,0.0,1.0}
-    // };
 
-    // const verticesx = [_]v.RawVertex{v1, v2, v3, v4};
+    // const verticesx = [_]v.RawVertex{v1, v2, v3};
+
 
     // TODO: LOOK AT WHY I cant print the current vertex group but the group above works fine
     const vertices = ctx.current_vertex_group.compress(&ctx.current_vertex_group.arena);
-    const vertices_bytes = lhmem.get_bytes(v.RawVertex, vertices.len, @constCast(vertices.ptr));
+    const vertices_bytes = lhmem.get_bytes(v.RawVertex, vertices.len, vertices.ptr);
     std.mem.copyForwards(u8, data_view, vertices_bytes);
+
     _ = vk.vkUnmapMemory(app.device, app.vertex_buffer_mem);
 
     const offsets: u64 = 0;

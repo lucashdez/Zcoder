@@ -46,5 +46,5 @@ pub fn clamp(comptime T: type, value: *T, min: T, max: T) void {
 }
 
 pub fn normalize(comptime T: type, value: T, norm: T) T {
-    return value / norm ;
+    return (value / norm) - 1 ; // vulkan goes from -1,-1 to 1,1
 }

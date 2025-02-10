@@ -142,10 +142,8 @@ pub fn main() !void {
             app.graphics_ctx.window.event.?.t = .E_NONE;
         }
         app.graphics_ctx.window.event.?.t = .E_NONE;
-        const rect = draw.Rect{ .x = 150, .y = 150, .w = 100, .h = 100 };
-        draw.drawp_rectangle(&app.graphics_ctx, rect, draw.Color.create(0xff0000ff));
-        const rect2 = draw.Rect{ .x = 400, .y = 400, .w = 600, .h = 600 };
-        draw.drawp_rectangle(&app.graphics_ctx, rect2, draw.Color.create(0xffffffff));
+
+        draw.drawp_rectangle(&app.graphics_ctx, .{.x = 0, .y = 0, .w = 100, .h = 100}, draw.Color.create(0xFF0000FF));
         if (lhvk.prepare_frame(&app.graphics_ctx)) continue;
         lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
         lhvk.end_command_buffer_rendering(&app.graphics_ctx);

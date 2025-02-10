@@ -31,19 +31,41 @@ pub const Rect = struct {
     y: f32,
     w: f32,
     h: f32,
-
 };
 
 
-pub fn drawp_triangle(ctx: *LhvkGraphicsCtx, pos: .{usize, usize, usize}) void {
-     _ = ctx;
-     _ = pos;
+pub fn drawp_triangle(ctx: *LhvkGraphicsCtx, pos: struct {[2]f32, [2]f32, [2]f32}, color: Color) void {
+    const top = Vertex.init(&ctx.current_vertex_group.arena,
+        la.vec2f(
+                la.normalize(f32, pos[0][0], @floatFromInt(ctx.window.width)),
+                la.normalize(f32, pos[0][1], @floatFromInt(ctx.window.height))
+            ),
+        color);
+    const left = Vertex.init(&ctx.current_vertex_group.arena,
+        la.vec2f(
+                la.normalize(f32, pos[1][0], @floatFromInt(ctx.window.width)),
+                la.normalize(f32, pos[1][1], @floatFromInt(ctx.window.height))
+            ),
+        color);
+    const right = Vertex.init(&ctx.current_vertex_group.arena,
+        la.vec2f(
+                la.normalize(f32, pos[2][0], @floatFromInt(ctx.window.width)),
+                la.normalize(f32, pos[2][1], @floatFromInt(ctx.window.height))
+            ),
+        color);
+    ctx.current_vertex_group.sll_push_back(top);
+    ctx.current_vertex_group.sll_push_back(left);
+    ctx.current_vertex_group.sll_push_back(right);
 }
 
 pub fn drawp_rectangle(ctx: *LhvkGraphicsCtx, r: Rect, color: Color) void {
     // TODO: STACK FREES THIS THING
-    const top_left = Vertex.init(&ctx.current_vertex_group.arena,la.vec2f(la.normalize(f32 ,r.x, @floatFromInt(ctx.window.width)), la.normalize(f32 ,r.y, @floatFromInt(ctx.window.height))), color);
-    const top_right = Vertex.init(&ctx.current_vertex_group.arena,la.vec2f(la.normalize(f32 ,r.x + r.w, @floatFromInt(ctx.window.width)), la.normalize(f32 ,r.y, @floatFromInt(ctx.window.height))), color);
+    const top_left = Vertex.init(&ctx.current_vertex_group.arena,
+        la.vec2f(la.normalize(f32 ,r.x, @floatFromInt(ctx.window.width)),
+        la.normalize(f32 ,r.y, @floatFromInt(ctx.window.height))), color);
+    const top_right = Vertex.init(&ctx.current_vertex_group.arena,
+        la.vec2f(la.normalize(f32 ,r.x + r.w, @floatFromInt(ctx.window.width)),
+        la.normalize(f32 ,r.y, @floatFromInt(ctx.window.height))), color);
     const bottom_left = Vertex.init(&ctx.current_vertex_group.arena,la.vec2f(la.normalize(f32 ,r.x, @floatFromInt(ctx.window.width)), la.normalize(f32 ,r.y + r.h, @floatFromInt(ctx.window.height))), color);
     const bottom_right = Vertex.init(&ctx.current_vertex_group.arena,la.vec2f(la.normalize(f32 ,r.x + r.h, @floatFromInt(ctx.window.width)), la.normalize(f32 ,r.y + r.h, @floatFromInt(ctx.window.height))), color);
     ctx.current_vertex_group.sll_push_back(top_left);
