@@ -1,0 +1,32 @@
+version(2);
+project_name = "zcoder";
+patterns = {
+    "*.zig",
+    "*.4coder",
+};
+blacklist_patterns = {
+    ".zig-cache",
+};
+load_paths_base = {
+    { ".", .relative = true, .recursive = true, },
+};
+load_paths = {
+    .win = load_paths_base,
+    .linux = load_paths_base,
+    .mac = load_paths_base,
+};
+
+commands = {
+    .build = { .out = "*compilation*", .footer_panel = true, .save_dirty_files = true,
+        .win = "build.bat",
+        .linux = "./build.sh",
+        .mac = "./build.sh", },
+    .run = { .out = "*run*", .footer_panel = false, .save_dirty_files = false,
+        .win = "zig-out\\zcoder",
+        .linux = "zig-out/zcoder",
+        .mac = "zig-out/zcoder", },
+};
+fkey_command = {
+    .F1 = "run";
+    .F2 = "run";
+};

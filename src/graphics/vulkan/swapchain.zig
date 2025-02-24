@@ -5,10 +5,6 @@ const Arena = lhmem.Arena;
 const u = @import("../lhvk_utils.zig");
 const vk = @import("../vk_api.zig").vk;
 
-pub const SwapchainError = error {
-    NoContextProvided,
-};
-
 pub const Swapchain = struct
 {
     // Minimum arena size == 16kb?
@@ -17,10 +13,10 @@ pub const Swapchain = struct
     images: []vk.VkImage,
     image_views: []vk.VkImageView,
     framebuffers: []vk.VkFramebuffer,
-
-
+    
+    
     pub fn init(ctx: ?*lhvk.LhvkGraphicsCtx)
-    SwapchainError!Swapchain
+        SwapchainError!Swapchain
     {
         if (ctx == null)
         {
@@ -30,8 +26,8 @@ pub const Swapchain = struct
         const arena = lhmem.make_arena((1 << 10) * 16);
         //var app = ctx.vk_app;
         //var app_data = ctx.vk_appdata;
-
-
+        
+        
         return Swapchain {
             .arena = arena,
             .handle = std.mem.zeroes(vk.VkSwapchainKHR),
