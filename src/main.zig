@@ -143,7 +143,7 @@ pub fn main() !void {
         }
         app.graphics_ctx.window.event.?.t = .E_NONE;
 
-        draw.drawp_rectangle(&app.graphics_ctx, .{.x = 0, .y = 0, .w = 100, .h = 100}, draw.Color.create(0xFF0000FF));
+        draw.drawp_rectangle(&app.graphics_ctx, .{ .x = 0, .y = 0, .w = @as(f32, @floatFromInt(app.graphics_ctx.window.width)) / 2, .h = @as(f32, @floatFromInt(app.graphics_ctx.window.height)) }, draw.Color.create(0xFF0000FF));
         if (lhvk.prepare_frame(&app.graphics_ctx)) continue;
         lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
         lhvk.end_command_buffer_rendering(&app.graphics_ctx);

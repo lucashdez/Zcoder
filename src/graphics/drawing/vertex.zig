@@ -11,6 +11,7 @@ const lhmem = @import("../../memory/memory.zig");
 const Arena = lhmem.Arena;
 
 const Color = @import("primitives.zig").Color;
+const VertexType = enum(u32) { VtTriangle, VtRectangle };
 
 pub const RawVertex = struct {
     pos: [2]f32,
@@ -24,24 +25,29 @@ pub const VertexList = struct {
 
     pub fn sll_push_back(list: *VertexList, new: *Vertex) void {
         if (list.first) |f| {
-            if (f == list.last.?) { f.next = new; list.last = new; }
-            else { list.last.?.next = new; list.last = new; }
+            if (f == list.last.?) {
+                f.next = new;
+                list.last = new;
+            } else {
+                list.last.?.next = new;
+                list.last = new;
+            }
+        } else {
+            list.first = new;
+            list.last = new;
         }
-        else {list.first = new; list.last = new;}
     }
-    pub fn count(list: *const VertexList)
-    usize
-    {
+    pub fn count(list: *const VertexList) usize {
         var c: usize = 0;
-        if (list.first) |head|
-        {
+        if (list.first) |head| {
             c = 1;
             var ptr: *Vertex = head;
-            while(ptr.next) |next|
-            {
+            while (ptr.next) |next| {
                 c += 1;
                 ptr = next;
-                if (ptr.next == null) {break;}
+                if (ptr.next == null) {
+                    break;
+                }
             }
         }
         return c;
@@ -49,7 +55,7 @@ pub const VertexList = struct {
     pub fn compress(list: *VertexList, arena: *lhmem.Arena) []RawVertex {
         const n = list.count();
         const arr = arena.push_array(RawVertex, n)[0..n];
-        var i:usize = 0;
+        var i: usize = 0;
         var ptr = list.first;
         while (ptr) |aval| {
             arr[i] = aval.raw;
@@ -82,7 +88,6 @@ pub fn get_attribute_description(arena: *Arena) []vk.VkVertexInputAttributeDescr
     return d;
 }
 
-
 pub const Vertex = struct {
     raw: RawVertex,
     next: ?*Vertex,
@@ -91,11 +96,7 @@ pub const Vertex = struct {
         v.raw.pos[0] = pos.x;
         v.raw.pos[1] = pos.y;
 
-        v.raw.color = .{
-                @as(f32, @floatFromInt(c.r))/255,
-                @as(f32, @floatFromInt(c.g))/255,
-                @as(f32, @floatFromInt(c.b))/255,
-                @as(f32, @floatFromInt(c.a))/255};
+        v.raw.color = .{ @as(f32, @floatFromInt(c.r)) / 255, @as(f32, @floatFromInt(c.g)) / 255, @as(f32, @floatFromInt(c.b)) / 255, @as(f32, @floatFromInt(c.a)) / 255 };
         v.next = null;
         return v;
     }

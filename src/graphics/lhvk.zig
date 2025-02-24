@@ -10,7 +10,6 @@ const TARGET_OS = @import("builtin").os.tag;
 const Swapchain = @import("vulkan/swapchain.zig").Swapchain;
 const v = @import("drawing/vertex.zig");
 
-
 pub const LhvkGraphicsCtx = struct {
     window: Window,
     vk_app: VkApp,
@@ -533,7 +532,7 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
 
     var input_assembly_create_info: vk.VkPipelineInputAssemblyStateCreateInfo = std.mem.zeroes(vk.VkPipelineInputAssemblyStateCreateInfo);
     input_assembly_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    input_assembly_create_info.topology = vk.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    input_assembly_create_info.topology = vk.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
     input_assembly_create_info.primitiveRestartEnable = vk.VK_FALSE;
 
     var viewport: vk.VkViewport = std.mem.zeroes(vk.VkViewport);
@@ -749,9 +748,6 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     rp_begin_info.clearValueCount = 1;
     rp_begin_info.pClearValues = &clear_value;
 
-
-
-
     vk.vkCmdBeginRenderPass(app.command_buffer, &rp_begin_info, vk.VK_SUBPASS_CONTENTS_INLINE);
     vk.vkCmdBindPipeline(app.command_buffer, vk.VK_PIPELINE_BIND_POINT_GRAPHICS, app.graphics_pipeline);
 
@@ -760,9 +756,9 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     _ = vk.vkMapMemory(app.device, app.vertex_buffer_mem, 0, app.vertex_buffer_size, 0, &data);
 
     const data_view: []u8 = @as([*]u8, @ptrCast(data))[0..app.vertex_buffer_size];
-        // 1: graphics.drawing.vertex.RawVertex{ .pos = { 1.25e-1, 1.6666667e-1 }, .color = { 1e0, 0e0, 0e0, 1e0 } },
-        // 2: graphics.drawing.vertex.RawVertex{ .pos = { 2.5e-1, 3.3333334e-1 }, .color = { 1e0, 0e0, 0e0, 1e0 } },
-        // 3: graphics.drawing.vertex.RawVertex{ .pos = { 3.75e-1, 5e-1 }, .color = { 1e0, 0e0, 0e0, 1e0 } }
+    // 1: graphics.drawing.vertex.RawVertex{ .pos = { 1.25e-1, 1.6666667e-1 }, .color = { 1e0, 0e0, 0e0, 1e0 } },
+    // 2: graphics.drawing.vertex.RawVertex{ .pos = { 2.5e-1, 3.3333334e-1 }, .color = { 1e0, 0e0, 0e0, 1e0 } },
+    // 3: graphics.drawing.vertex.RawVertex{ .pos = { 3.75e-1, 5e-1 }, .color = { 1e0, 0e0, 0e0, 1e0 } }
     // const v1 : v.RawVertex = .{
     //     .pos = .{0.125, 0.166},
     //     .color = .{1.0,1.0,1.0,1.0}
@@ -778,7 +774,6 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
 
     // const verticesx = [_]v.RawVertex{v1, v2, v3};
 
-
     // TODO: LOOK AT WHY I cant print the current vertex group but the group above works fine
     const vertices = ctx.current_vertex_group.compress(&ctx.current_vertex_group.arena);
     const vertices_bytes = lhmem.get_bytes(v.RawVertex, vertices.len, vertices.ptr);
@@ -788,7 +783,7 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
 
     const offsets: u64 = 0;
     vk.vkCmdBindVertexBuffers(app.command_buffer, 0, 1, &app.vertex_buffer, &offsets);
-    vk.vkCmdDraw(app.command_buffer, @intCast(vertices.len) ,1,0,0);
+    vk.vkCmdDraw(app.command_buffer, @intCast(vertices.len), 1, 0, 0);
 }
 
 pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
@@ -869,16 +864,13 @@ fn recreate_swapchain(ctx: *LhvkGraphicsCtx) void {
     create_framebuffers(ctx);
 }
 
-fn find_memory_type(ctx: *LhvkGraphicsCtx, filter: u32, props: vk.VkMemoryPropertyFlags)
-u32
-{
+fn find_memory_type(ctx: *LhvkGraphicsCtx, filter: u32, props: vk.VkMemoryPropertyFlags) u32 {
     _ = filter;
     var mem_props: vk.VkPhysicalDeviceMemoryProperties = undefined;
     vk.vkGetPhysicalDeviceMemoryProperties(ctx.vk_appdata.physical_device, &mem_props);
-    for (0..mem_props.memoryTypeCount) |i|
-    {
+    for (0..mem_props.memoryTypeCount) |i| {
         if ((mem_props.memoryTypes[i].propertyFlags & props) == props)
-        return @intCast(i);
+            return @intCast(i);
     }
     return 0;
 }
