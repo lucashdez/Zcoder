@@ -15,18 +15,13 @@ pub const Swapchain = struct
     framebuffers: []vk.VkFramebuffer,
     
     
-    pub fn init(ctx: ?*lhvk.LhvkGraphicsCtx)
-        SwapchainError!Swapchain
+    pub fn init(arena: *Arena, ctx: *lhvk.LhvkGraphicsCtx)
+        !Swapchain
     {
-        if (ctx == null)
-        {
-            u.err("Context in creation of swapchain == null", .{});
-            return error.NoContextProvided;
-        }
-        const arena = lhmem.make_arena((1 << 10) * 16);
-        //var app = ctx.vk_app;
-        //var app_data = ctx.vk_appdata;
-        
+        const app: *VkApp = &ctx.vk_app;
+        const app_data: *VkAppData = &ctx.vk_appdata;
+        var scratch = lhmem.scratch_block();
+        const swapchain_support = query_swapchain_support(&scratch, app_data.physical_device, app.surface);
         
         return Swapchain {
             .arena = arena,

@@ -18,15 +18,15 @@ load_paths = {
 
 commands = {
     .build = { .out = "*compilation*", .footer_panel = true, .save_dirty_files = true,
-        .win = "build.bat",
+        .win = "zig build",
         .linux = "./build.sh",
         .mac = "./build.sh", },
-    .run = { .out = "*run*", .footer_panel = false, .save_dirty_files = false,
-        .win = "zig-out\\zcoder",
+    .run = { .out = "*run*", .footer_panel = true, .save_dirty_files = false,
+        .win = "zig-out\\bin\\z-coder",
         .linux = "zig-out/zcoder",
         .mac = "zig-out/zcoder", },
 };
 fkey_command = {
-    .F1 = "run";
+    .F1 = "build";
     .F2 = "run";
 };

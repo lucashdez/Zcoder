@@ -85,7 +85,7 @@ fn check_validation_layers() bool {
     std.debug.print("Checking validation layers\n", .{});
     var arena: Arena = lhmem.make_arena((1 << 10) * 16);
     //defer arena.release();
-
+    
     std.debug.print("Arena done...\n", .{});
     const validationLayers: [2][]const u8 = .{
         "VK_LAYER_KHRONOS_validation",
@@ -97,7 +97,7 @@ fn check_validation_layers() bool {
     count = @as(usize, @intCast(layer_count));
     const available_layers: []vk.VkLayerProperties = arena.push_array(vk.VkLayerProperties, count)[0..count];
     _ = vk.vkEnumerateInstanceLayerProperties(&layer_count, @ptrCast(available_layers));
-
+    
     for (validationLayers) |layer| {
         var layer_found: bool = false;
         for (available_layers) |av| {
@@ -157,9 +157,9 @@ fn create_instance(app: *VkApp, app_data: ?*VkAppData) VulkanInitError!void {
         .engineVersion = vk.VK_MAKE_API_VERSION(0, 1, 0, 0),
         .apiVersion = vk.VK_MAKE_API_VERSION(0, 1, 0, 0),
     };
-
+    
     var debug_create_info: vk.VkDebugUtilsMessengerCreateInfoEXT = undefined;
-
+    
     var create_info: vk.VkInstanceCreateInfo = std.mem.zeroes(vk.VkInstanceCreateInfo);
     create_info.sType = vk.VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     create_info.pApplicationInfo = &app_info;
@@ -224,14 +224,14 @@ fn find_queue_families(ctx: *LhvkGraphicsCtx, device: vk.VkPhysicalDevice) !Queu
 fn is_device_suitable(device: vk.VkPhysicalDevice, surface: vk.VkSurfaceKHR, rates: *u8, ctx: *LhvkGraphicsCtx) bool {
     var device_properties: vk.VkPhysicalDeviceProperties = std.mem.zeroes(vk.VkPhysicalDeviceProperties);
     var device_features: vk.VkPhysicalDeviceFeatures = std.mem.zeroes(vk.VkPhysicalDeviceFeatures);
-
+    
     vk.vkGetPhysicalDeviceProperties(device, &device_properties);
     vk.vkGetPhysicalDeviceFeatures(device, &device_features);
     const families_found: ?QueueFamilyIndices = find_queue_families(ctx, device) catch return null;
     var scratch = lhmem.scratch_block();
     const swapchain_support = query_swapchain_support(&scratch, device, surface);
     const supports_swapchain: bool = (swapchain_support.presentModes.len != 0) and (swapchain_support.formats.len != 0);
-
+    
     switch (device_properties.deviceType) {
         vk.VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU => {
             rates.* = 10;
@@ -256,7 +256,7 @@ fn pick_physical_device(ctx: *LhvkGraphicsCtx) !void {
     var tmp: Arena = lhmem.scratch_block();
     var device_count: u32 = 0;
     var rates: []u8 = undefined;
-
+    
     _ = vk.vkEnumeratePhysicalDevices(app.instance, &device_count, null);
     if (device_count == 0) {
         std.debug.print("No physical devices found", .{});
@@ -292,7 +292,7 @@ fn create_logical_device(ctx: *LhvkGraphicsCtx) void {
     const indices: QueueFamilyIndices = find_queue_families(ctx, app_data.physical_device) catch {
         return .{ .graphics_family = null, .present_family = null };
     };
-
+    
     assert(indices.graphics_family != null);
     assert(indices.present_family != null);
     app_data.queue_priority = 1.0;
@@ -305,7 +305,7 @@ fn create_logical_device(ctx: *LhvkGraphicsCtx) void {
         queue_create_infos[0].queueCount = 1;
         queue_create_infos[0].pQueuePriorities = &app_data.queue_priority;
     }
-
+    
     { // present family
         queue_create_infos[1].sType = vk.VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queue_create_infos[1].pNext = null;
@@ -314,7 +314,7 @@ fn create_logical_device(ctx: *LhvkGraphicsCtx) void {
         queue_create_infos[1].queueCount = 1;
         queue_create_infos[1].pQueuePriorities = &app_data.queue_priority;
     }
-
+    
     var device_features: vk.VkPhysicalDeviceFeatures = undefined;
     vk.vkGetPhysicalDeviceFeatures(app_data.physical_device, &device_features);
     u.trace("device_features {any}", .{device_features});
@@ -337,7 +337,7 @@ fn create_logical_device(ctx: *LhvkGraphicsCtx) void {
         if (TARGET_OS == .windows) {
             editable[1] = "VK_KHR_portability_subset";
         }
-
+        
         create_info.enabledExtensionCount = count;
         create_info.ppEnabledExtensionNames = editable;
     }
@@ -346,7 +346,7 @@ fn create_logical_device(ctx: *LhvkGraphicsCtx) void {
         create_info.enabledLayerCount = 0;
         create_info.ppEnabledLayerNames = null;
     }
-
+    
     assert(vk.vkCreateDevice(app_data.physical_device, &create_info, null, &app.device) == vk.VK_SUCCESS);
     vk.vkGetDeviceQueue(app.device, indices.graphics_family.?, 0, &app.graphics_queue);
     vk.vkGetDeviceQueue(app.device, indices.present_family.?, 0, &app.present_queue);
@@ -361,21 +361,21 @@ const SwapChainSupportDetails = struct {
 fn query_swapchain_support(arena: *Arena, device: vk.VkPhysicalDevice, surface: vk.VkSurfaceKHR) SwapChainSupportDetails {
     var details: SwapChainSupportDetails = undefined;
     _ = vk.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, surface, &details.capabilities);
-
+    
     var format_count: u32 = 0;
     _ = vk.vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, null);
     if (format_count != 0) {
         details.formats = arena.push_array(vk.VkSurfaceFormatKHR, format_count)[0..format_count];
         _ = vk.vkGetPhysicalDeviceSurfaceFormatsKHR(device, surface, &format_count, details.formats.ptr);
     }
-
+    
     var present_mode_count: u32 = 0;
     _ = vk.vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, null);
     if (present_mode_count != 0) {
         details.presentModes = arena.push_array(vk.VkPresentModeKHR, present_mode_count)[0..present_mode_count];
         _ = vk.vkGetPhysicalDeviceSurfacePresentModesKHR(device, surface, &present_mode_count, details.presentModes.ptr);
     }
-
+    
     return details;
 }
 
@@ -401,14 +401,14 @@ fn create_swapchain(ctx: *LhvkGraphicsCtx) !void {
     const app_data: *VkAppData = &ctx.vk_appdata;
     var arena = lhmem.scratch_block();
     const swapchain_support = query_swapchain_support(&arena, app_data.physical_device, app.surface);
-
+    
     const surface_format = choose_surface_format(swapchain_support.formats);
     const present_mode = vk.VK_PRESENT_MODE_FIFO_KHR;
     const extent = choose_swap_extent(ctx.window, swapchain_support.capabilities);
-
+    
     var image_count = swapchain_support.capabilities.minImageCount + 1;
     la.clamp(u32, &image_count, swapchain_support.capabilities.minImageCount, swapchain_support.capabilities.maxImageCount);
-
+    
     var create_info: vk.VkSwapchainCreateInfoKHR = std.mem.zeroes(vk.VkSwapchainCreateInfoKHR);
     create_info.sType = vk.VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     create_info.surface = app.surface;
@@ -429,13 +429,13 @@ fn create_swapchain(ctx: *LhvkGraphicsCtx) !void {
         create_info.queueFamilyIndexCount = 0;
         create_info.pQueueFamilyIndices = null;
     }
-
+    
     create_info.preTransform = swapchain_support.capabilities.currentTransform;
     create_info.compositeAlpha = vk.VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
     create_info.presentMode = present_mode;
     create_info.clipped = vk.VK_TRUE;
     create_info.oldSwapchain = null;
-
+    
     if (vk.vkCreateSwapchainKHR(app.device, &create_info, null, &app.swapchain) != vk.VK_SUCCESS) {
         return error.CANNOT_CREATE_SWAPCHAIN;
     }
@@ -502,39 +502,39 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     const appdata: *VkAppData = &ctx.vk_appdata;
     const vert_bytes = try read_file(&appdata.arena, "src/shaders/vert.spv");
     const frag_bytes = try read_file(&appdata.arena, "src/shaders/frag.spv");
-
+    
     const vert_shader = create_shader_module(app.device, vert_bytes).?;
     const frag_shader = create_shader_module(app.device, frag_bytes).?;
-
+    
     var vert_shader_stage_create_info: vk.VkPipelineShaderStageCreateInfo = std.mem.zeroes(vk.VkPipelineShaderStageCreateInfo);
     vert_shader_stage_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     vert_shader_stage_create_info.stage = vk.VK_SHADER_STAGE_VERTEX_BIT;
     vert_shader_stage_create_info.module = vert_shader;
     vert_shader_stage_create_info.pName = "main";
-
+    
     var frag_shader_stage_create_info: vk.VkPipelineShaderStageCreateInfo = std.mem.zeroes(vk.VkPipelineShaderStageCreateInfo);
     frag_shader_stage_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     frag_shader_stage_create_info.stage = vk.VK_SHADER_STAGE_FRAGMENT_BIT;
     frag_shader_stage_create_info.module = frag_shader;
     frag_shader_stage_create_info.pName = "main";
-
+    
     const stage_infos: [2]vk.VkPipelineShaderStageCreateInfo = .{ vert_shader_stage_create_info, frag_shader_stage_create_info };
-
+    
     var vertex_input_info: vk.VkPipelineVertexInputStateCreateInfo = std.mem.zeroes(vk.VkPipelineVertexInputStateCreateInfo);
     vertex_input_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
+    
     var binding_description = v.get_binding_description();
     const attribute_description = v.get_attribute_description(&ctx.vk_app.arena);
     vertex_input_info.vertexBindingDescriptionCount = 1;
     vertex_input_info.vertexAttributeDescriptionCount = @intCast(attribute_description.len);
     vertex_input_info.pVertexBindingDescriptions = &binding_description;
     vertex_input_info.pVertexAttributeDescriptions = attribute_description.ptr;
-
+    
     var input_assembly_create_info: vk.VkPipelineInputAssemblyStateCreateInfo = std.mem.zeroes(vk.VkPipelineInputAssemblyStateCreateInfo);
     input_assembly_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
     input_assembly_create_info.topology = vk.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
     input_assembly_create_info.primitiveRestartEnable = vk.VK_FALSE;
-
+    
     var viewport: vk.VkViewport = std.mem.zeroes(vk.VkViewport);
     viewport.x = 0.0;
     viewport.y = 0.0;
@@ -542,21 +542,21 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     viewport.height = @as(f32, @floatFromInt(app.extent.height));
     viewport.minDepth = 0.0;
     viewport.maxDepth = 1.0;
-
+    
     var scissor: vk.VkRect2D = std.mem.zeroes(vk.VkRect2D);
     var offset: vk.VkOffset2D = std.mem.zeroes(vk.VkOffset2D);
     offset.x = 0;
     offset.y = 0;
     scissor.offset = offset;
     scissor.extent = app.extent;
-
+    
     var viewport_state_create_info: vk.VkPipelineViewportStateCreateInfo = std.mem.zeroes(vk.VkPipelineViewportStateCreateInfo);
     viewport_state_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
     viewport_state_create_info.viewportCount = 1;
     viewport_state_create_info.pViewports = &viewport;
     viewport_state_create_info.scissorCount = 1;
     viewport_state_create_info.pScissors = &scissor;
-
+    
     var rasterizer: vk.VkPipelineRasterizationStateCreateInfo = std.mem.zeroes(vk.VkPipelineRasterizationStateCreateInfo);
     rasterizer.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
     rasterizer.depthClampEnable = vk.VK_FALSE;
@@ -569,7 +569,7 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     rasterizer.depthBiasConstantFactor = 0.0;
     rasterizer.depthBiasClamp = 0.0;
     rasterizer.depthBiasSlopeFactor = 0.0;
-
+    
     var multisampling: vk.VkPipelineMultisampleStateCreateInfo = std.mem.zeroes(vk.VkPipelineMultisampleStateCreateInfo);
     multisampling.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
     multisampling.sampleShadingEnable = vk.VK_FALSE;
@@ -578,7 +578,7 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     multisampling.pSampleMask = null; // Optional
     multisampling.alphaToCoverageEnable = vk.VK_FALSE; // Optional
     multisampling.alphaToOneEnable = vk.VK_FALSE; // Optional
-
+    
     var color_blend_attachment: vk.VkPipelineColorBlendAttachmentState = std.mem.zeroes(vk.VkPipelineColorBlendAttachmentState);
     color_blend_attachment.colorWriteMask = vk.VK_COLOR_COMPONENT_R_BIT | vk.VK_COLOR_COMPONENT_G_BIT | vk.VK_COLOR_COMPONENT_B_BIT | vk.VK_COLOR_COMPONENT_A_BIT;
     color_blend_attachment.blendEnable = vk.VK_FALSE;
@@ -588,7 +588,7 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     color_blend_attachment.srcAlphaBlendFactor = vk.VK_BLEND_FACTOR_ONE; // Optional
     color_blend_attachment.dstAlphaBlendFactor = vk.VK_BLEND_FACTOR_ZERO; // Optional
     color_blend_attachment.alphaBlendOp = vk.VK_BLEND_OP_ADD; // Optional
-
+    
     var color_blending: vk.VkPipelineColorBlendStateCreateInfo = std.mem.zeroes(vk.VkPipelineColorBlendStateCreateInfo);
     color_blending.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
     color_blending.logicOpEnable = vk.VK_FALSE;
@@ -599,7 +599,7 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     color_blending.blendConstants[1] = 0.0; // Optional
     color_blending.blendConstants[2] = 0.0; // Optional
     color_blending.blendConstants[3] = 0.0; // Optional
-
+    
     var pipeline_layout_create_info: vk.VkPipelineLayoutCreateInfo = std.mem.zeroes(vk.VkPipelineLayoutCreateInfo);
     pipeline_layout_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
     pipeline_layout_create_info.pNext = null;
@@ -608,11 +608,11 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     pipeline_layout_create_info.pSetLayouts = null;
     pipeline_layout_create_info.pushConstantRangeCount = 0;
     pipeline_layout_create_info.pPushConstantRanges = null;
-
+    
     if (vk.vkCreatePipelineLayout(app.device, &pipeline_layout_create_info, null, &app.pipeline_layout) != vk.VK_SUCCESS) {
         u.err("SOMETHING HERE IN THE CREATING OF LAYOUT", .{});
     }
-
+    
     var pipeline_info: vk.VkGraphicsPipelineCreateInfo = std.mem.zeroes(vk.VkGraphicsPipelineCreateInfo);
     pipeline_info.sType = vk.VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
     pipeline_info.stageCount = 2;
@@ -630,11 +630,11 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     pipeline_info.subpass = 0;
     pipeline_info.basePipelineHandle = null; // Optional
     pipeline_info.basePipelineIndex = -1; // Optional
-
+    
     if (vk.vkCreateGraphicsPipelines(app.device, null, 1, &pipeline_info, null, &app.graphics_pipeline) != vk.VK_SUCCESS) {
         return error.CannotCreatePipeline;
     }
-
+    
     vk.vkDestroyShaderModule(app.device, vert_shader, null);
     vk.vkDestroyShaderModule(app.device, frag_shader, null);
 }
@@ -650,16 +650,16 @@ fn create_render_pass(ctx: *LhvkGraphicsCtx) !void {
     attachment_description.stencilStoreOp = vk.VK_ATTACHMENT_STORE_OP_DONT_CARE;
     attachment_description.initialLayout = vk.VK_IMAGE_LAYOUT_UNDEFINED;
     attachment_description.finalLayout = vk.VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-
+    
     var color_attachment_ref: vk.VkAttachmentReference = std.mem.zeroes(vk.VkAttachmentReference);
     color_attachment_ref.attachment = 0;
     color_attachment_ref.layout = vk.VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-
+    
     var subpass: vk.VkSubpassDescription = std.mem.zeroes(vk.VkSubpassDescription);
     subpass.pipelineBindPoint = vk.VK_PIPELINE_BIND_POINT_GRAPHICS;
     subpass.colorAttachmentCount = 1;
     subpass.pColorAttachments = &color_attachment_ref;
-
+    
     var dependency = std.mem.zeroes(vk.VkSubpassDependency);
     dependency.srcSubpass = vk.VK_SUBPASS_EXTERNAL;
     dependency.dstSubpass = 0;
@@ -667,7 +667,7 @@ fn create_render_pass(ctx: *LhvkGraphicsCtx) !void {
     dependency.srcAccessMask = 0;
     dependency.dstStageMask = vk.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     dependency.dstAccessMask = vk.VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-
+    
     var renderpass_info: vk.VkRenderPassCreateInfo = std.mem.zeroes(vk.VkRenderPassCreateInfo);
     renderpass_info.sType = vk.VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
     renderpass_info.attachmentCount = 1;
@@ -676,7 +676,7 @@ fn create_render_pass(ctx: *LhvkGraphicsCtx) !void {
     renderpass_info.pSubpasses = &subpass;
     renderpass_info.dependencyCount = 1;
     renderpass_info.pDependencies = &dependency;
-
+    
     if (vk.vkCreateRenderPass(app.device, &renderpass_info, null, &app.render_pass) != vk.VK_SUCCESS) return error.CANNOTCREATERENDERPASS;
 }
 
@@ -730,7 +730,7 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     begin_info.flags = 0;
     begin_info.pInheritanceInfo = null;
     if (vk.vkBeginCommandBuffer(app.command_buffer, &begin_info) != vk.VK_SUCCESS) u.err("Cannot record command buffer", .{});
-
+    
     var rp_begin_info = std.mem.zeroes(vk.VkRenderPassBeginInfo);
     rp_begin_info.sType = vk.VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     rp_begin_info.renderPass = app.render_pass;
@@ -747,14 +747,14 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     clear_value.color.float32[3] = 0.0;
     rp_begin_info.clearValueCount = 1;
     rp_begin_info.pClearValues = &clear_value;
-
+    
     vk.vkCmdBeginRenderPass(app.command_buffer, &rp_begin_info, vk.VK_SUBPASS_CONTENTS_INLINE);
     vk.vkCmdBindPipeline(app.command_buffer, vk.VK_PIPELINE_BIND_POINT_GRAPHICS, app.graphics_pipeline);
-
+    
     var data: ?*anyopaque = undefined;
     //var scratch = lhmem.make_arena(app.vertex_buffer_size);
     _ = vk.vkMapMemory(app.device, app.vertex_buffer_mem, 0, app.vertex_buffer_size, 0, &data);
-
+    
     const data_view: []u8 = @as([*]u8, @ptrCast(data))[0..app.vertex_buffer_size];
     // 1: graphics.drawing.vertex.RawVertex{ .pos = { 1.25e-1, 1.6666667e-1 }, .color = { 1e0, 0e0, 0e0, 1e0 } },
     // 2: graphics.drawing.vertex.RawVertex{ .pos = { 2.5e-1, 3.3333334e-1 }, .color = { 1e0, 0e0, 0e0, 1e0 } },
@@ -771,16 +771,16 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     //     .pos = .{0.375, 0.5},
     //     .color = .{1.0,1.0,1.0,1.0}
     // };
-
+    
     // const verticesx = [_]v.RawVertex{v1, v2, v3};
-
+    
     // TODO: LOOK AT WHY I cant print the current vertex group but the group above works fine
     const vertices = ctx.current_vertex_group.compress(&ctx.current_vertex_group.arena);
     const vertices_bytes = lhmem.get_bytes(v.RawVertex, vertices.len, vertices.ptr);
     std.mem.copyForwards(u8, data_view, vertices_bytes);
-
+    
     _ = vk.vkUnmapMemory(app.device, app.vertex_buffer_mem);
-
+    
     const offsets: u64 = 0;
     vk.vkCmdBindVertexBuffers(app.command_buffer, 0, 1, &app.vertex_buffer, &offsets);
     vk.vkCmdDraw(app.command_buffer, @intCast(vertices.len), 1, 0, 0);
@@ -792,11 +792,11 @@ pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     if (vk.vkEndCommandBuffer(app.command_buffer) != vk.VK_SUCCESS) {
         u.err("Ending command buffer not posible", .{});
     }
-
+    
     // TODO(lucashdez): PROBABLY SEPARATE In ANOTHER FUNCTION
     var submit_info = std.mem.zeroes(vk.VkSubmitInfo);
     submit_info.sType = vk.VK_STRUCTURE_TYPE_SUBMIT_INFO;
-
+    
     submit_info.waitSemaphoreCount = 1;
     submit_info.pWaitSemaphores = &app.image_available_sem;
     const wait_stages: [1]vk.VkPipelineStageFlags = .{vk.VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT};
@@ -808,7 +808,7 @@ pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     if (vk.vkQueueSubmit(app.graphics_queue, 1, &submit_info, app.in_flight_fence) != vk.VK_SUCCESS) {
         u.err("Cannot submit commands", .{});
     }
-
+    
     var present_info = std.mem.zeroes(vk.VkPresentInfoKHR);
     present_info.sType = vk.VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     present_info.waitSemaphoreCount = 1;
@@ -817,7 +817,7 @@ pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     present_info.pSwapchains = &app.swapchain;
     present_info.pImageIndices = &ctx.current_image;
     present_info.pResults = null;
-
+    
     const presenting_result = vk.vkQueuePresentKHR(app.present_queue, &present_info);
     if (presenting_result == vk.VK_ERROR_OUT_OF_DATE_KHR or
         presenting_result == vk.VK_SUBOPTIMAL_KHR)
@@ -832,11 +832,11 @@ fn create_sync_objects(ctx: *LhvkGraphicsCtx) void {
     var app: *VkApp = &ctx.vk_app;
     var semaphore_create_info = std.mem.zeroes(vk.VkSemaphoreCreateInfo);
     semaphore_create_info.sType = vk.VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
+    
     var fence_create_info = std.mem.zeroes(vk.VkFenceCreateInfo);
     fence_create_info.sType = vk.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fence_create_info.flags = vk.VK_FENCE_CREATE_SIGNALED_BIT;
-
+    
     if (vk.vkCreateSemaphore(app.device, &semaphore_create_info, null, &app.image_available_sem) != vk.VK_SUCCESS) u.err("Cannot create semaphore", .{});
     if (vk.vkCreateSemaphore(app.device, &semaphore_create_info, null, &app.render_finished_sem) != vk.VK_SUCCESS) u.err("Cannot create semaphore", .{});
     if (vk.vkCreateFence(app.device, &fence_create_info, null, &app.in_flight_fence) != vk.VK_SUCCESS) u.err("Cannot create fence", .{});
@@ -883,19 +883,19 @@ fn create_vertex_buffer(ctx: *LhvkGraphicsCtx) void {
     app.vertex_buffer_size = buffer_info.size;
     buffer_info.usage = vk.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     buffer_info.sharingMode = vk.VK_SHARING_MODE_EXCLUSIVE;
-
+    
     if (vk.vkCreateBuffer(app.device, &buffer_info, null, &app.vertex_buffer) != vk.VK_SUCCESS) u.err("CANNOT CREATE VERTEX BUFFER", .{});
-
+    
     var mem_reqs = std.mem.zeroes(vk.VkMemoryRequirements);
     _ = vk.vkGetBufferMemoryRequirements(app.device, app.vertex_buffer, &mem_reqs);
-
+    
     var alloc_info: vk.VkMemoryAllocateInfo = std.mem.zeroes(vk.VkMemoryAllocateInfo);
     alloc_info.sType = vk.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     alloc_info.allocationSize = mem_reqs.size;
     alloc_info.memoryTypeIndex = find_memory_type(ctx, mem_reqs.memoryTypeBits, vk.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
+    
     if (vk.vkAllocateMemory(app.device, &alloc_info, null, &app.vertex_buffer_mem) != vk.VK_SUCCESS) u.err("CANNOT ALLOCATE MEMORY", .{});
-
+    
     _ = vk.vkBindBufferMemory(app.device, app.vertex_buffer, app.vertex_buffer_mem, 0);
 }
 
@@ -950,7 +950,7 @@ pub fn prepare_frame(ctx: *LhvkGraphicsCtx) bool {
         recreate_swapchain(ctx);
         return true;
     }
-
+    
     _ = vk.vkResetCommandBuffer(app.command_buffer, 0);
     return false;
 }
