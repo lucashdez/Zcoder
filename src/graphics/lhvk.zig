@@ -10,7 +10,9 @@ const TARGET_OS = @import("builtin").os.tag;
 const Swapchain = @import("vulkan/swapchain.zig").Swapchain;
 const v = @import("drawing/vertex.zig");
 
+
 pub const LhvkGraphicsCtx = struct {
+    
     window: Window,
     vk_app: VkApp,
     vk_appdata: VkAppData,
@@ -532,7 +534,7 @@ fn create_graphics_pipeline(ctx: *LhvkGraphicsCtx) !void {
     
     var input_assembly_create_info: vk.VkPipelineInputAssemblyStateCreateInfo = std.mem.zeroes(vk.VkPipelineInputAssemblyStateCreateInfo);
     input_assembly_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    input_assembly_create_info.topology = vk.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+    input_assembly_create_info.topology = vk.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
     input_assembly_create_info.primitiveRestartEnable = vk.VK_FALSE;
     
     var viewport: vk.VkViewport = std.mem.zeroes(vk.VkViewport);
