@@ -18,6 +18,8 @@ pub const Swapchain = struct {
     // Minimum arena size == 16kb?
     arena: Arena,
     handle: vk.VkSwapchainKHR,
+    format: vk.VkSurfaceFormatKHR,
+    extent: vk.VkExtent2D,
     images: []vk.VkImage,
     image_views: []vk.VkImageView,
     framebuffers: []vk.VkFramebuffer,
@@ -85,8 +87,11 @@ pub const Swapchain = struct {
     pub fn init(ctx: *lhvk.LhvkGraphicsCtx) !Swapchain {
         const app = &ctx.vk_app;
         const app_data = &ctx.vk_appdata;
-        var scratch = lhmem.scratch_block();
-        const swapchain_support = query_swapchain_support(&scratch, app_data.physical_device, app.surface);
+        var swapchain_arena = lhmem.scratch_block();
+
+        const device = app.device;
+
+        const swapchain_support = query_swapchain_support(&swapchain_arena, app_data.physical_device, app.surface);
 
         const surface_format = choose_surface_format(swapchain_support.formats);
         const present_mode = vk.VK_PRESENT_MODE_FIFO_KHR;
@@ -123,12 +128,45 @@ pub const Swapchain = struct {
         create_info.clipped = vk.VK_TRUE;
         create_info.oldSwapchain = null;
 
+        var swapchain: vk.VkSwapchainKHR = null;
+        if (vk.vkCreateSwapchainKHR(device, &create_info, null, &swapchain) != vk.VK_SUCCESS) {
+            //return error.CannotCreateSwapchain;
+        }
+
+        // TEST: Creation of swapchain_images
+        _ = vk.vkGetSwapchainImagesKHR(device, swapchain, &image_count, null);
+        const images = swapchain_arena.push_array(vk.VkImage, image_count)[0..image_count];
+        _ = vk.vkGetSwapchainImagesKHR(device, swapchain, &image_count, images.ptr);
+
+        var image_views = app.arena.push_array(vk.VkImageView, images.len)[0..images.len];
+        for (0..images.len) |i| {
+            var info: vk.VkImageViewCreateInfo = std.mem.zeroes(vk.VkImageViewCreateInfo);
+            info.sType = vk.VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+            info.image = images[i];
+            info.viewType = vk.VK_IMAGE_VIEW_TYPE_2D;
+            info.format = surface_format.format;
+            info.components.r = vk.VK_COMPONENT_SWIZZLE_IDENTITY;
+            info.components.g = vk.VK_COMPONENT_SWIZZLE_IDENTITY;
+            info.components.b = vk.VK_COMPONENT_SWIZZLE_IDENTITY;
+            info.components.a = vk.VK_COMPONENT_SWIZZLE_IDENTITY;
+            info.subresourceRange.aspectMask = vk.VK_IMAGE_ASPECT_COLOR_BIT;
+            info.subresourceRange.baseMipLevel = 0;
+            info.subresourceRange.levelCount = 1;
+            info.subresourceRange.baseArrayLayer = 0;
+            info.subresourceRange.layerCount = 1;
+
+            // TEST: Can be copying images instead of modifying array
+            if (vk.vkCreateImageView(device, &info, null, &image_views[i]) != vk.VK_SUCCESS) return error.CannotCreateImageView;
+        }
+
         return Swapchain{
-            .arena = lhmem.make_arena((1 << 10) * 16),
-            .handle = std.mem.zeroes(vk.VkSwapchainKHR),
-            .images = std.mem.zeroes([]vk.VkImage),
-            .image_views = std.mem.zeroes([]vk.VkImageView),
-            .framebuffers = std.mem.zeroes([]vk.VkFramebuffer),
+            .arena = swapchain_arena,
+            .handle = swapchain,
+            .format = surface_format,
+            .extent = extent,
+            .images = images,
+            .image_views = image_views,
+            .framebuffers = swapchain_arena.push_array(vk.VkFramebuffer, images.len)[0..images.len],
             .swapchain_support = swapchain_support,
         };
     }
