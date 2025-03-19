@@ -28,7 +28,7 @@ const Buffer = struct {
     buffer: std.ArrayList(u8),
     file_name: ?[]const u8,
     file: ?std.fs.File,
-    
+
     pub fn create_buffer() Buffer {
         return Buffer{
             .arena = lhmem.make_arena((1 << 10) * 24),
@@ -39,7 +39,7 @@ const Buffer = struct {
             .file = null,
         };
     }
-    
+
     pub fn open_or_create_file(buffer: *Buffer, path: []const u8) !void {
         buffer.file = std.fs.cwd().openFile(path, .{ .mode = .read_write, .lock = .none }) catch blk: {
             break :blk try std.fs.cwd().createFile(path, .{ .read = true });
@@ -77,7 +77,7 @@ fn handle_key_input(buf: *Buffer, event: e.Event) void {
                 write_char(buf, 'a');
             }
         },
-        
+
         else => {},
     }
     print("{s}\n", .{buf.buffer.items});
@@ -115,15 +115,15 @@ pub fn main() !void {
     }
     _ = Font;
     _ = FontAttributes;
-    
+
     var app: Application = undefined;
-    
+
     app.graphics_ctx.window = windowing.create_window("algo");
     app.graphics_ctx.vk_app.arena = lhmem.make_arena((1 << 10) * 100);
     app.graphics_ctx.vk_appdata.arena = lhmem.make_arena((1 << 10) * 100);
     try lhvk.init_vulkan(&app.graphics_ctx);
     var buffer: Buffer = Buffer.create_buffer();
-    
+
     var quit: bool = false;
     while (!quit) {
         app.graphics_ctx.current_vertex_group = VertexList{
@@ -143,8 +143,10 @@ pub fn main() !void {
             app.graphics_ctx.window.event.?.t = .E_NONE;
         }
         app.graphics_ctx.window.event.?.t = .E_NONE;
-        
+
         draw.drawp_rectangle(&app.graphics_ctx, .{ .x = 0, .y = 0, .w = @as(f32, @floatFromInt(app.graphics_ctx.window.width)) / 2, .h = @as(f32, @floatFromInt(app.graphics_ctx.window.height)) }, draw.Color.create(0xFF0000FF));
+        draw.drawp_rectangle(&app.graphics_ctx, .{ .x = 100, .y = 100, .w = @as(f32, @floatFromInt(app.graphics_ctx.window.width)) / 2, .h = @as(f32, @floatFromInt(app.graphics_ctx.window.height)) }, draw.Color.create(0x00FF00FF));
+
         if (lhvk.prepare_frame(&app.graphics_ctx)) continue;
         lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
         lhvk.end_command_buffer_rendering(&app.graphics_ctx);

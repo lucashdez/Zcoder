@@ -505,12 +505,12 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     var rp_begin_info = std.mem.zeroes(vk.VkRenderPassBeginInfo);
     rp_begin_info.sType = vk.VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     rp_begin_info.renderPass = app.render_pass;
-    rp_begin_info.framebuffer = app.swapchain_framebuffers[ctx.current_image];
+    rp_begin_info.framebuffer = app.lhswapchain.framebuffers[ctx.current_image];
     var offset: vk.VkOffset2D = undefined;
     offset.x = 0;
     offset.y = 0;
     rp_begin_info.renderArea.offset = offset;
-    rp_begin_info.renderArea.extent = app.extent;
+    rp_begin_info.renderArea.extent = app.lhswapchain.extent;
     var clear_value = std.mem.zeroes(vk.VkClearValue);
     clear_value.color.float32[0] = 0.0;
     clear_value.color.float32[1] = 0.0;
@@ -520,7 +520,7 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     rp_begin_info.pClearValues = &clear_value;
 
     vk.vkCmdBeginRenderPass(app.command_buffer, &rp_begin_info, vk.VK_SUBPASS_CONTENTS_INLINE);
-    vk.vkCmdBindPipeline(app.command_buffer, vk.VK_PIPELINE_BIND_POINT_GRAPHICS, app.graphics_pipeline);
+    vk.vkCmdBindPipeline(app.command_buffer, vk.VK_PIPELINE_BIND_POINT_GRAPHICS, app.lhpipeline.pipeline);
 
     var data: ?*anyopaque = undefined;
     //var scratch = lhmem.make_arena(app.vertex_buffer_size);
@@ -585,7 +585,7 @@ pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     present_info.waitSemaphoreCount = 1;
     present_info.pWaitSemaphores = &app.render_finished_sem;
     present_info.swapchainCount = 1;
-    present_info.pSwapchains = &app.swapchain;
+    present_info.pSwapchains = &app.lhswapchain.handle;
     present_info.pImageIndices = &ctx.current_image;
     present_info.pResults = null;
 
