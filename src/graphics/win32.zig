@@ -38,12 +38,17 @@ pub const Window = struct {
                 raw.WM_KEYDOWN => {
                     // TODO: Handle WM_CHAR;
                     _ = raw.PeekMessageW(&window.msg, null, 0, 0, raw.PM_REMOVE);
-                    if (window.msg.message == raw.WM_CHAR) {u.warn("char pressed",.{});}
-                    switch(window.msg.wParam) {
-                        0x61 => {window.event.?.t = .E_KEY; window.event.?.key = .A;},
+                    if (window.msg.message == raw.WM_CHAR) {
+                        u.warn("char pressed", .{});
+                    }
+                    switch (window.msg.wParam) {
+                        0x61 => {
+                            window.event.?.t = .E_KEY;
+                            window.event.?.key = .A;
+                        },
                         else => {
                             u.warn("KEY not handled = {}", .{window.msg.wParam});
-                        }
+                        },
                     }
                 },
                 raw.WM_KEYUP => {
@@ -66,15 +71,38 @@ pub const Window = struct {
                         else => u.info("Non-client area clicked: {}", .{window.msg.wParam}),
                     }
                 },
+                raw.WM_NCLBUTTONUP => {
+                    switch (window.msg.wParam) {
+                        raw.HTLEFT => u.info("Left resize edge UP", .{}),
+                        raw.HTRIGHT => u.info("Right resize edge", .{}),
+                        raw.HTTOP => u.info("Top resize edge", .{}),
+                        raw.HTBOTTOM => u.info("Bottom resize edge", .{}),
+                        raw.HTTOPLEFT => {
+                            u.info("Top-left resize corner UP", .{});
+                            const width: u32 = @intCast(window.msg.lParam & 0xFFFF); // Low word (width)
+                            const height: u32 = @intCast((window.msg.lParam >> 16) & 0xFFFF); // High word (height)
+                            u.info("Window resized: {}x{}", .{ width, height });
+                            window.width = width;
+                            window.height = height;
+                        },
+                        raw.HTTOPRIGHT => u.info("Top-right resize corner", .{}),
+                        raw.HTBOTTOMLEFT => u.info("Bottom-left resize corner", .{}),
+                        raw.HTBOTTOMRIGHT => u.info("Bottom-right resize corner", .{}),
+                        else => u.info("Non-client area clicked: {}", .{window.msg.wParam}),
+                    }
+                },
                 raw.WM_CLOSE => {
                     u.info("CLOSE", .{});
                     handled = true;
                 },
                 raw.WM_SIZE => {
                     u.info("SIZE", .{});
-                    const width: i32 = @intCast(window.msg.lParam & 0xFFFF); // Low word (width)
-                    const height: i32 = @intCast((window.msg.lParam >> 16) & 0xFFFF); // High word (height)
+                    const width: u32 = @intCast(window.msg.lParam & 0xFFFF); // Low word (width)
+                    const height: u32 = @intCast((window.msg.lParam >> 16) & 0xFFFF); // High word (height)
                     u.info("Window resized: {}x{}", .{ width, height });
+
+                    window.width = width;
+                    window.height = height;
                 },
                 raw.WM_PAINT => {},
                 raw.WM_DESTROY => {

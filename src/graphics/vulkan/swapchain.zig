@@ -35,7 +35,7 @@ pub const Swapchain = struct {
         vk.vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, @ptrCast(@constCast(queue_families)));
         for (queue_families, 0..queue_family_count) |queue, i| {
             var present_support: u32 = 0;
-            _ = vk.vkGetPhysicalDeviceSurfaceSupportKHR(device, @intCast(i), app.surface, &present_support);
+            _ = vk.vkGetPhysicalDeviceSurfaceSupportKHR(device, @intCast(i), app.device_wrapper.surface, &present_support);
             if (present_support == vk.VK_TRUE) {
                 indices.present_family = @intCast(i);
             }
@@ -89,9 +89,9 @@ pub const Swapchain = struct {
         const app_data = &ctx.vk_appdata;
         var swapchain_arena = lhmem.scratch_block();
 
-        const device = app.device;
+        const device = app.device_wrapper.device;
 
-        const swapchain_support = query_swapchain_support(&swapchain_arena, app_data.physical_device, app.surface);
+        const swapchain_support = query_swapchain_support(&swapchain_arena, app_data.physical_device, app.device_wrapper.surface);
 
         const surface_format = choose_surface_format(swapchain_support.formats);
         const present_mode = vk.VK_PRESENT_MODE_FIFO_KHR;
@@ -102,7 +102,7 @@ pub const Swapchain = struct {
 
         var create_info: vk.VkSwapchainCreateInfoKHR = std.mem.zeroes(vk.VkSwapchainCreateInfoKHR);
         create_info.sType = vk.VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-        create_info.surface = app.surface;
+        create_info.surface = app.device_wrapper.surface;
         create_info.minImageCount = image_count;
         create_info.imageFormat = surface_format.format;
         create_info.imageColorSpace = surface_format.colorSpace;

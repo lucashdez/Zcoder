@@ -35,21 +35,9 @@ pub const VkApp = struct {
     arena: Arena,
     instance_wrapper: InstanceWrapper,
     device_wrapper: DeviceWrapper,
-    device: vk.VkDevice,
-    graphics_queue: vk.VkQueue,
-    present_queue: vk.VkQueue,
-    surface: vk.VkSurfaceKHR,
     lhswapchain: Swapchain,
-    swapchain: vk.VkSwapchainKHR,
-    swapchain_images: []vk.VkImage,
-    format: vk.VkFormat,
-    extent: vk.VkExtent2D,
-    image_views: []vk.VkImageView,
     render_pass: vk.VkRenderPass,
-    lhpipeline: Pipeline,
-    pipeline_layout: vk.VkPipelineLayout,
-    graphics_pipeline: vk.VkPipeline,
-    swapchain_framebuffers: []vk.VkFramebuffer,
+    graphics_pipeline: Pipeline,
     command_pool: vk.VkCommandPool,
     vertex_buffer: vk.VkBuffer,
     vertex_buffer_size: u64,
@@ -225,7 +213,7 @@ fn find_queue_families(ctx: *LhvkGraphicsCtx, device: vk.VkPhysicalDevice) !Queu
     vk.vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, @ptrCast(@constCast(queue_families)));
     for (queue_families, 0..queue_family_count) |queue, i| {
         var present_support: u32 = 0;
-        _ = vk.vkGetPhysicalDeviceSurfaceSupportKHR(device, @intCast(i), app.surface, &present_support);
+        _ = vk.vkGetPhysicalDeviceSurfaceSupportKHR(device, @intCast(i), app.device_wrapper.surface, &present_support);
         if (present_support == vk.VK_TRUE) {
             indices.present_family = @intCast(i);
         }
@@ -283,7 +271,7 @@ fn pick_physical_device(ctx: *LhvkGraphicsCtx) !void {
     _ = vk.vkEnumeratePhysicalDevices(app.instance_wrapper.instance, &device_count, physical_devices);
     const dview: []vk.VkPhysicalDevice = physical_devices[0..device_count];
     for (dview, 0..device_count) |device, i| {
-        if (!is_device_suitable(device, app.surface, &rates[i], ctx)) rates[i] = 0;
+        if (!is_device_suitable(device, app.device_wrapper.surface, &rates[i], ctx)) rates[i] = 0;
     }
     var max: i32 = 0;
     var i: usize = 0;
@@ -362,9 +350,9 @@ fn create_logical_device(ctx: *LhvkGraphicsCtx) void {
         create_info.ppEnabledLayerNames = null;
     }
 
-    assert(vk.vkCreateDevice(app_data.physical_device, &create_info, null, &app.device) == vk.VK_SUCCESS);
-    vk.vkGetDeviceQueue(app.device, indices.graphics_family.?, 0, &app.graphics_queue);
-    vk.vkGetDeviceQueue(app.device, indices.present_family.?, 0, &app.present_queue);
+    assert(vk.vkCreateDevice(app_data.physical_device, &create_info, null, &app.device_wrapper.device) == vk.VK_SUCCESS);
+    vk.vkGetDeviceQueue(app.device_wrapper.device, indices.graphics_family.?, 0, &app.device_wrapper.graphics_queue);
+    vk.vkGetDeviceQueue(app.device_wrapper.device, indices.present_family.?, 0, &app.device_wrapper.present_queue);
 }
 
 const SwapChainSupportDetails = struct {
@@ -477,7 +465,7 @@ fn create_command_pool(ctx: *LhvkGraphicsCtx) void {
     pool_info.sType = vk.VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     pool_info.flags = vk.VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     pool_info.queueFamilyIndex = queue_family_indices.graphics_family.?;
-    if (vk.vkCreateCommandPool(app.device, &pool_info, null, &app.command_pool) != vk.VK_SUCCESS) {
+    if (vk.vkCreateCommandPool(app.device_wrapper.device, &pool_info, null, &app.command_pool) != vk.VK_SUCCESS) {
         u.err("Couldnt create command pool", .{});
     }
 }
@@ -489,7 +477,7 @@ fn create_command_buffer(ctx: *LhvkGraphicsCtx) void {
     alloc_info.commandPool = app.command_pool;
     alloc_info.level = vk.VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     alloc_info.commandBufferCount = 1;
-    if (vk.vkAllocateCommandBuffers(app.device, &alloc_info, &app.command_buffer) != vk.VK_SUCCESS) {
+    if (vk.vkAllocateCommandBuffers(app.device_wrapper.device, &alloc_info, &app.command_buffer) != vk.VK_SUCCESS) {
         u.err("Cannot create command buffer", .{});
     }
 }
@@ -520,44 +508,25 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     rp_begin_info.pClearValues = &clear_value;
 
     vk.vkCmdBeginRenderPass(app.command_buffer, &rp_begin_info, vk.VK_SUBPASS_CONTENTS_INLINE);
-    vk.vkCmdBindPipeline(app.command_buffer, vk.VK_PIPELINE_BIND_POINT_GRAPHICS, app.lhpipeline.pipeline);
+    vk.vkCmdBindPipeline(app.command_buffer, vk.VK_PIPELINE_BIND_POINT_GRAPHICS, app.graphics_pipeline.pipeline);
 
     var data: ?*anyopaque = undefined;
     //var scratch = lhmem.make_arena(app.vertex_buffer_size);
-    _ = vk.vkMapMemory(app.device, app.vertex_buffer_mem, 0, app.vertex_buffer_size, 0, &data);
+    _ = vk.vkMapMemory(app.device_wrapper.device, app.vertex_buffer_mem, 0, app.vertex_buffer_size, 0, &data);
 
     const data_view: []u8 = @as([*]u8, @ptrCast(data))[0..app.vertex_buffer_size];
-    // 1: graphics.drawing.vertex.RawVertex{ .pos = { 1.25e-1, 1.6666667e-1 }, .color = { 1e0, 0e0, 0e0, 1e0 } },
-    // 2: graphics.drawing.vertex.RawVertex{ .pos = { 2.5e-1, 3.3333334e-1 }, .color = { 1e0, 0e0, 0e0, 1e0 } },
-    // 3: graphics.drawing.vertex.RawVertex{ .pos = { 3.75e-1, 5e-1 }, .color = { 1e0, 0e0, 0e0, 1e0 } }
-    // const v1 : v.RawVertex = .{
-    //     .pos = .{0.125, 0.166},
-    //     .color = .{1.0,1.0,1.0,1.0}
-    // };
-    // const v2 : v.RawVertex = .{
-    //     .pos = .{0.25, 0.33},
-    //     .color = .{1.0,1.0,1.0,1.0}
-    // };
-    // const v3 : v.RawVertex = .{
-    //     .pos = .{0.375, 0.5},
-    //     .color = .{1.0,1.0,1.0,1.0}
-    // };
-
-    // const verticesx = [_]v.RawVertex{v1, v2, v3};
-
-    // TODO: LOOK AT WHY I cant print the current vertex group but the group above works fine
     const vertices = ctx.current_vertex_group.compress(&ctx.current_vertex_group.arena);
     const vertices_bytes = lhmem.get_bytes(v.RawVertex, vertices.len, vertices.ptr);
     std.mem.copyForwards(u8, data_view, vertices_bytes);
 
-    _ = vk.vkUnmapMemory(app.device, app.vertex_buffer_mem);
+    _ = vk.vkUnmapMemory(app.device_wrapper.device, app.vertex_buffer_mem);
 
     const offsets: u64 = 0;
     vk.vkCmdBindVertexBuffers(app.command_buffer, 0, 1, &app.vertex_buffer, &offsets);
     vk.vkCmdDraw(app.command_buffer, @intCast(vertices.len), 1, 0, 0);
 }
 
-pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
+pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) !void {
     const app: *VkApp = &ctx.vk_app;
     vk.vkCmdEndRenderPass(app.command_buffer);
     if (vk.vkEndCommandBuffer(app.command_buffer) != vk.VK_SUCCESS) {
@@ -576,7 +545,7 @@ pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     submit_info.pCommandBuffers = &app.command_buffer;
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores = &app.render_finished_sem;
-    if (vk.vkQueueSubmit(app.graphics_queue, 1, &submit_info, app.in_flight_fence) != vk.VK_SUCCESS) {
+    if (vk.vkQueueSubmit(app.device_wrapper.graphics_queue, 1, &submit_info, app.in_flight_fence) != vk.VK_SUCCESS) {
         u.err("Cannot submit commands", .{});
     }
 
@@ -589,11 +558,11 @@ pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     present_info.pImageIndices = &ctx.current_image;
     present_info.pResults = null;
 
-    const presenting_result = vk.vkQueuePresentKHR(app.present_queue, &present_info);
+    const presenting_result = vk.vkQueuePresentKHR(app.device_wrapper.present_queue, &present_info);
     if (presenting_result == vk.VK_ERROR_OUT_OF_DATE_KHR or
         presenting_result == vk.VK_SUBOPTIMAL_KHR)
     {
-        recreate_swapchain(ctx);
+        try recreate_swapchain(ctx);
         u.info("Recreating swapchain", .{});
     }
     ctx.current_image = (ctx.current_image + 1) % app.max_frames_in_flight;
@@ -608,31 +577,32 @@ fn create_sync_objects(ctx: *LhvkGraphicsCtx) void {
     fence_create_info.sType = vk.VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fence_create_info.flags = vk.VK_FENCE_CREATE_SIGNALED_BIT;
 
-    if (vk.vkCreateSemaphore(app.device, &semaphore_create_info, null, &app.image_available_sem) != vk.VK_SUCCESS) u.err("Cannot create semaphore", .{});
-    if (vk.vkCreateSemaphore(app.device, &semaphore_create_info, null, &app.render_finished_sem) != vk.VK_SUCCESS) u.err("Cannot create semaphore", .{});
-    if (vk.vkCreateFence(app.device, &fence_create_info, null, &app.in_flight_fence) != vk.VK_SUCCESS) u.err("Cannot create fence", .{});
+    if (vk.vkCreateSemaphore(app.device_wrapper.device, &semaphore_create_info, null, &app.image_available_sem) != vk.VK_SUCCESS) u.err("Cannot create semaphore", .{});
+    if (vk.vkCreateSemaphore(app.device_wrapper.device, &semaphore_create_info, null, &app.render_finished_sem) != vk.VK_SUCCESS) u.err("Cannot create semaphore", .{});
+    if (vk.vkCreateFence(app.device_wrapper.device, &fence_create_info, null, &app.in_flight_fence) != vk.VK_SUCCESS) u.err("Cannot create fence", .{});
 }
 
 fn cleanup_swapchain(ctx: *LhvkGraphicsCtx) void {
-    for (0..ctx.vk_app.swapchain_framebuffers.len) |i| {
-        vk.vkDestroyFramebuffer(ctx.vk_app.device, ctx.vk_app.swapchain_framebuffers[i], null);
+    for (0..ctx.vk_app.lhswapchain.framebuffers.len) |i| {
+        vk.vkDestroyFramebuffer(ctx.vk_app.device_wrapper.device, ctx.vk_app.lhswapchain.framebuffers[i], null);
     }
-    for (0..ctx.vk_app.image_views.len) |i| {
-        vk.vkDestroyImageView(ctx.vk_app.device, ctx.vk_app.image_views[i], null);
+    for (0..ctx.vk_app.lhswapchain.image_views.len) |i| {
+        vk.vkDestroyImageView(ctx.vk_app.device_wrapper.device, ctx.vk_app.lhswapchain.image_views[i], null);
     }
-    vk.vkDestroySwapchainKHR(ctx.vk_app.device, ctx.vk_app.swapchain, null);
+    vk.vkDestroySwapchainKHR(ctx.vk_app.device_wrapper.device, ctx.vk_app.lhswapchain.handle, null);
 }
 
-fn recreate_swapchain(ctx: *LhvkGraphicsCtx) void {
-    _ = vk.vkDeviceWaitIdle(ctx.vk_app.device);
-    //cleanup_swapchain(ctx);
-    //create_swapchain(ctx) catch {
-    //   u.err("Something happened recreating the swapchain", .{});
-    //};
-    //create_image_views(ctx) catch {
-    //    u.err("Something happened recreating the image views", .{});
-    //};
-    //create_framebuffers(ctx);
+fn recreate_swapchain(ctx: *LhvkGraphicsCtx) !void {
+    _ = vk.vkDeviceWaitIdle(ctx.vk_app.device_wrapper.device);
+    cleanup_swapchain(ctx);
+    // TODO: Change this for the swapchain to recreate itself faster
+    ctx.vk_app.lhswapchain = Swapchain.init(ctx) catch blk: {
+        u.err("Cannot recreate SWAPCHAIN: WHAT IS HAPPENINGGG", .{});
+        u.warn("RETRYING...", .{});
+        break :blk try Swapchain.init(ctx);
+    };
+
+    create_framebuffers(ctx.vk_app.device_wrapper.device, &ctx.vk_app.lhswapchain, ctx.vk_app.render_pass);
 }
 
 fn find_memory_type(ctx: *LhvkGraphicsCtx, filter: u32, props: vk.VkMemoryPropertyFlags) u32 {
@@ -655,19 +625,19 @@ fn create_vertex_buffer(ctx: *LhvkGraphicsCtx) void {
     buffer_info.usage = vk.VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
     buffer_info.sharingMode = vk.VK_SHARING_MODE_EXCLUSIVE;
 
-    if (vk.vkCreateBuffer(app.device, &buffer_info, null, &app.vertex_buffer) != vk.VK_SUCCESS) u.err("CANNOT CREATE VERTEX BUFFER", .{});
+    if (vk.vkCreateBuffer(app.device_wrapper.device, &buffer_info, null, &app.vertex_buffer) != vk.VK_SUCCESS) u.err("CANNOT CREATE VERTEX BUFFER", .{});
 
     var mem_reqs = std.mem.zeroes(vk.VkMemoryRequirements);
-    _ = vk.vkGetBufferMemoryRequirements(app.device, app.vertex_buffer, &mem_reqs);
+    _ = vk.vkGetBufferMemoryRequirements(app.device_wrapper.device, app.vertex_buffer, &mem_reqs);
 
     var alloc_info: vk.VkMemoryAllocateInfo = std.mem.zeroes(vk.VkMemoryAllocateInfo);
     alloc_info.sType = vk.VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
     alloc_info.allocationSize = mem_reqs.size;
     alloc_info.memoryTypeIndex = find_memory_type(ctx, mem_reqs.memoryTypeBits, vk.VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | vk.VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
-    if (vk.vkAllocateMemory(app.device, &alloc_info, null, &app.vertex_buffer_mem) != vk.VK_SUCCESS) u.err("CANNOT ALLOCATE MEMORY", .{});
+    if (vk.vkAllocateMemory(app.device_wrapper.device, &alloc_info, null, &app.vertex_buffer_mem) != vk.VK_SUCCESS) u.err("CANNOT ALLOCATE MEMORY", .{});
 
-    _ = vk.vkBindBufferMemory(app.device, app.vertex_buffer, app.vertex_buffer_mem, 0);
+    _ = vk.vkBindBufferMemory(app.device_wrapper.device, app.vertex_buffer, app.vertex_buffer_mem, 0);
 }
 
 pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
@@ -680,9 +650,9 @@ pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
     create_logical_device(ctx);
     ctx.vk_app.lhswapchain = try Swapchain.init(ctx);
     //try create_swapchain(ctx);
-    ctx.vk_app.render_pass = try create_render_pass(ctx.vk_app.device, ctx.vk_app.lhswapchain.format.format);
-    ctx.vk_app.lhpipeline = try Pipeline.init(ctx.vk_app.device, ctx.vk_app.render_pass, ctx.vk_app.lhswapchain);
-    create_framebuffers(ctx.vk_app.device, &ctx.vk_app.lhswapchain, ctx.vk_app.render_pass);
+    ctx.vk_app.render_pass = try create_render_pass(ctx.vk_app.device_wrapper.device, ctx.vk_app.lhswapchain.format.format);
+    ctx.vk_app.graphics_pipeline = try Pipeline.init(ctx.vk_app.device_wrapper.device, ctx.vk_app.render_pass, ctx.vk_app.lhswapchain);
+    create_framebuffers(ctx.vk_app.device_wrapper.device, &ctx.vk_app.lhswapchain, ctx.vk_app.render_pass);
     // TODO: Continue refactor
     create_command_pool(ctx);
     create_vertex_buffer(ctx);
@@ -698,7 +668,7 @@ fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp) void {
             .hwnd = @alignCast(@ptrCast(ctx.window.surface.?)),
             .hinstance = @alignCast(@ptrCast(ctx.window.instance.?)),
         };
-        const result = vk.vkCreateWin32SurfaceKHR(app.instance_wrapper.instance, &create_info, null, &app.surface);
+        const result = vk.vkCreateWin32SurfaceKHR(app.instance_wrapper.instance, &create_info, null, &app.device_wrapper.surface);
         assert(result == vk.VK_SUCCESS);
     } else {
         var create_info: vk.VkXlibSurfaceCreateInfoKHR = .{
@@ -707,18 +677,18 @@ fn create_surface(ctx: *const LhvkGraphicsCtx, app: *VkApp) void {
             .window = 0,
         };
         //const result = vk.vkCreateXlibSurfaceKHR();
-        const result = vk.vkCreateXlibSurfaceKHR(app.instance_wrapper.instance, &create_info, null, &app.surface);
+        const result = vk.vkCreateXlibSurfaceKHR(app.instance_wrapper.instance, &create_info, null, &app.device_wrapper.surface);
         assert(result == vk.VK_SUCCESS);
     }
 }
 
-pub fn prepare_frame(ctx: *LhvkGraphicsCtx) bool {
+pub fn prepare_frame(ctx: *LhvkGraphicsCtx) !bool {
     var app: *VkApp = &ctx.vk_app;
-    _ = vk.vkWaitForFences(app.device, 1, &app.in_flight_fence, vk.VK_TRUE, std.math.maxInt(u64));
-    _ = vk.vkResetFences(app.device, 1, &app.in_flight_fence);
-    const next_image_result = vk.vkAcquireNextImageKHR(app.device, app.lhswapchain.handle, std.math.maxInt(u64), app.image_available_sem, null, &ctx.current_image);
+    _ = vk.vkWaitForFences(app.device_wrapper.device, 1, &app.in_flight_fence, vk.VK_TRUE, std.math.maxInt(u64));
+    _ = vk.vkResetFences(app.device_wrapper.device, 1, &app.in_flight_fence);
+    const next_image_result = vk.vkAcquireNextImageKHR(app.device_wrapper.device, app.lhswapchain.handle, std.math.maxInt(u64), app.image_available_sem, null, &ctx.current_image);
     if (next_image_result == vk.VK_ERROR_OUT_OF_DATE_KHR) {
-        recreate_swapchain(ctx);
+        try recreate_swapchain(ctx);
         return true;
     }
 
