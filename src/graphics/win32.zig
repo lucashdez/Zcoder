@@ -137,8 +137,8 @@ pub const Window = struct {
 pub fn create_window(comptime name: []const u8) Window {
     const class_name: [*:0]const u16 = W(name);
     const hinstance: raw.HINSTANCE = raw.GetModuleHandleW(null).?;
-    const width: i32 = 800;
-    const height: i32 = 600;
+    var width: u32 = 800;
+    var height: u32 = 600;
     var wc: raw.WNDCLASSW = std.mem.zeroes(raw.WNDCLASSW);
     wc.lpfnWndProc = customproc;
     wc.hInstance = hinstance;
@@ -153,9 +153,13 @@ pub fn create_window(comptime name: []const u8) Window {
         .DLGFRAME = 1,
         .BORDER = 1,
     };
-    const hwnd_opt: ?raw.HWND = raw.CreateWindowExW(.{}, class_name, W("Learn to program"), styles, raw.CW_USEDEFAULT, raw.CW_USEDEFAULT, width, height, null, null, hinstance, null);
+    const hwnd_opt: ?raw.HWND = raw.CreateWindowExW(.{}, class_name, W("Learn to program"), styles, raw.CW_USEDEFAULT, raw.CW_USEDEFAULT, @intCast(width), @intCast(height), null, null, hinstance, null);
     assert(hwnd_opt != null);
     const hwnd = hwnd_opt.?;
+    var rect: raw.RECT = undefined;
+    _ = raw.GetClientRect(hwnd, &rect);
+    width = @abs(rect.right - rect.left);
+    height = @abs(rect.bottom - rect.top);
 
     _ = raw.ShowWindow(hwnd, raw.SW_SHOW);
     return Window{
