@@ -33,14 +33,20 @@ fn create_shader_module(device: vk.VkDevice, code: []const u8) ?vk.VkShaderModul
     return shader_module;
 }
 
+pub const PipelineOptions = struct {
+    topology: vk.VkPrimitiveTopology,
+    frag_path: []const u8,
+    vert_path: []const u8,
+};
+
 pub const Pipeline = struct {
     arena: lhmem.Arena,
     pipeline: vk.VkPipeline,
     layout: vk.VkPipelineLayout,
-    pub fn init(device: vk.VkDevice, render_pass: vk.VkRenderPass, swapchain: Swapchain) !Pipeline {
+    pub fn init(device: vk.VkDevice, render_pass: vk.VkRenderPass, swapchain: Swapchain, p_opt: PipelineOptions) !Pipeline {
         var arena = lhmem.make_arena((1 << 10) * 24);
         const pipeline_layout = create_pipeline_layout(device);
-        const pipeline = try create_pipeline(&arena, device, render_pass, swapchain, pipeline_layout, "src/shaders/vert.spv", "src/shaders/frag.spv");
+        const pipeline = try create_pipeline(&arena, device, render_pass, swapchain, pipeline_layout, p_opt);
         return .{ .arena = arena, .pipeline = pipeline, .layout = pipeline_layout };
     }
 
@@ -61,10 +67,10 @@ pub const Pipeline = struct {
         return layout;
     }
 
-    fn create_pipeline(arena: *lhmem.Arena, device: vk.VkDevice, render_pass: vk.VkRenderPass, swapchain: Swapchain, pipeline_layout: vk.VkPipelineLayout, vert: []const u8, frag: []const u8) !vk.VkPipeline {
+    fn create_pipeline(arena: *lhmem.Arena, device: vk.VkDevice, render_pass: vk.VkRenderPass, swapchain: Swapchain, pipeline_layout: vk.VkPipelineLayout, p_opt: PipelineOptions) !vk.VkPipeline {
         var scratch = lhmem.scratch_block();
-        const vert_bytes = try read_file(&scratch, vert);
-        const frag_bytes = try read_file(&scratch, frag);
+        const vert_bytes = try read_file(&scratch, p_opt.vert_path);
+        const frag_bytes = try read_file(&scratch, p_opt.frag_path);
         const vert_shader = create_shader_module(device, vert_bytes).?;
         defer vk.vkDestroyShaderModule(device, vert_shader, null);
         const frag_shader = create_shader_module(device, frag_bytes).?;
@@ -96,7 +102,7 @@ pub const Pipeline = struct {
 
         var input_assembly_create_info: vk.VkPipelineInputAssemblyStateCreateInfo = std.mem.zeroes(vk.VkPipelineInputAssemblyStateCreateInfo);
         input_assembly_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-        input_assembly_create_info.topology = vk.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+        input_assembly_create_info.topology = p_opt.topology;
         input_assembly_create_info.primitiveRestartEnable = vk.VK_FALSE;
 
         var viewport: vk.VkViewport = std.mem.zeroes(vk.VkViewport);
@@ -145,7 +151,7 @@ pub const Pipeline = struct {
 
         var color_blend_attachment: vk.VkPipelineColorBlendAttachmentState = std.mem.zeroes(vk.VkPipelineColorBlendAttachmentState);
         color_blend_attachment.colorWriteMask = vk.VK_COLOR_COMPONENT_R_BIT | vk.VK_COLOR_COMPONENT_G_BIT | vk.VK_COLOR_COMPONENT_B_BIT | vk.VK_COLOR_COMPONENT_A_BIT;
-        color_blend_attachment.blendEnable = vk.VK_FALSE;
+        color_blend_attachment.blendEnable = vk.VK_TRUE;
         color_blend_attachment.srcColorBlendFactor = vk.VK_BLEND_FACTOR_ONE; // Optional
         color_blend_attachment.dstColorBlendFactor = vk.VK_BLEND_FACTOR_ZERO; // Optional
         color_blend_attachment.colorBlendOp = vk.VK_BLEND_OP_ADD; // Optional

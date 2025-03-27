@@ -38,6 +38,7 @@ pub const VkApp = struct {
     lhswapchain: Swapchain,
     render_pass: vk.VkRenderPass,
     graphics_pipeline: Pipeline,
+    text_pipeline: Pipeline,
     command_pool: vk.VkCommandPool,
     vertex_buffer: vk.VkBuffer,
     vertex_buffer_size: u64,
@@ -498,6 +499,7 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     offset.x = 0;
     offset.y = 0;
     rp_begin_info.renderArea.offset = offset;
+    u.info("[begin_command_buffer_rendering], {any}", .{app.lhswapchain.extent});
     rp_begin_info.renderArea.extent = app.lhswapchain.extent;
     var clear_value = std.mem.zeroes(vk.VkClearValue);
     clear_value.color.float32[0] = 0.0;
@@ -595,12 +597,7 @@ fn cleanup_swapchain(ctx: *LhvkGraphicsCtx) void {
 fn recreate_swapchain(ctx: *LhvkGraphicsCtx) !void {
     _ = vk.vkDeviceWaitIdle(ctx.vk_app.device_wrapper.device);
     cleanup_swapchain(ctx);
-    // TODO: Change this for the swapchain to recreate itself faster
-    ctx.vk_app.lhswapchain = Swapchain.init(ctx) catch blk: {
-        u.err("Cannot recreate SWAPCHAIN: WHAT IS HAPPENINGGG", .{});
-        u.warn("RETRYING...", .{});
-        break :blk try Swapchain.init(ctx);
-    };
+    try ctx.vk_app.lhswapchain.recreate(ctx);
 
     create_framebuffers(ctx.vk_app.device_wrapper.device, &ctx.vk_app.lhswapchain, ctx.vk_app.render_pass);
 }
@@ -651,7 +648,8 @@ pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
     ctx.vk_app.lhswapchain = try Swapchain.init(ctx);
     //try create_swapchain(ctx);
     ctx.vk_app.render_pass = try create_render_pass(ctx.vk_app.device_wrapper.device, ctx.vk_app.lhswapchain.format.format);
-    ctx.vk_app.graphics_pipeline = try Pipeline.init(ctx.vk_app.device_wrapper.device, ctx.vk_app.render_pass, ctx.vk_app.lhswapchain);
+    ctx.vk_app.graphics_pipeline = try Pipeline.init(ctx.vk_app.device_wrapper.device, ctx.vk_app.render_pass, ctx.vk_app.lhswapchain, .{ .topology = vk.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, .frag_path = "src/shaders/frag.spv", .vert_path = "src/shaders/vert.spv" });
+    ctx.vk_app.text_pipeline = try Pipeline.init(ctx.vk_app.device_wrapper.device, ctx.vk_app.render_pass, ctx.vk_app.lhswapchain, .{ .topology = vk.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, .frag_path = "src/shaders/frag.spv", .vert_path = "src/shaders/vert.spv" });
     create_framebuffers(ctx.vk_app.device_wrapper.device, &ctx.vk_app.lhswapchain, ctx.vk_app.render_pass);
     // TODO: Continue refactor
     create_command_pool(ctx);

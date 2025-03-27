@@ -61,7 +61,13 @@ pub const Window = struct {
                             raw.PostQuitMessage(0);
                         },
                         raw.HTLEFT => u.info("Left resize edge", .{}),
-                        raw.HTRIGHT => u.info("Right resize edge", .{}),
+                        raw.HTRIGHT => {
+                            var rect: raw.RECT = undefined;
+                            _ = raw.GetClientRect(@alignCast(@ptrCast(window.surface.?)), &rect);
+                            window.width = @abs(rect.right - rect.left);
+                            window.height = @abs(rect.bottom - rect.top);
+                            u.info("{any}, {d}x{d}", .{ rect, window.width, window.height });
+                        },
                         raw.HTTOP => u.info("Top resize edge", .{}),
                         raw.HTBOTTOM => u.info("Bottom resize edge", .{}),
                         raw.HTTOPLEFT => u.info("Top-left resize corner", .{}),
@@ -74,7 +80,12 @@ pub const Window = struct {
                 raw.WM_NCLBUTTONUP => {
                     switch (window.msg.wParam) {
                         raw.HTLEFT => u.info("Left resize edge UP", .{}),
-                        raw.HTRIGHT => u.info("Right resize edge", .{}),
+                        raw.HTRIGHT => {
+                            var rect: raw.RECT = undefined;
+                            _ = raw.GetClientRect(@alignCast(@ptrCast(window.surface.?)), &rect);
+                            window.width = @abs(rect.right - rect.left);
+                            window.height = @abs(rect.bottom - rect.top);
+                        },
                         raw.HTTOP => u.info("Top resize edge", .{}),
                         raw.HTBOTTOM => u.info("Bottom resize edge", .{}),
                         raw.HTTOPLEFT => {
