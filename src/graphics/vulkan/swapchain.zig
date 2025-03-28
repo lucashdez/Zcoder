@@ -7,6 +7,8 @@ const vk = @import("../vk_api.zig").vk;
 const win32 = @import("../win32.zig");
 const Window = win32.Window;
 const la = @import("../../lin_alg/la.zig");
+const base = @import("../../base/base_types.zig");
+const Rectu32 = base.Rectu32;
 
 const SwapChainSupportDetails = struct {
     capabilities: vk.VkSurfaceCapabilitiesKHR,
@@ -76,9 +78,10 @@ pub const Swapchain = struct {
     }
 
     pub fn choose_swap_extent(window: Window, capabilities: vk.VkSurfaceCapabilitiesKHR) vk.VkExtent2D {
+        const rect = window.get_size();
         var actual_extent: vk.VkExtent2D = .{
-            .width = window.width,
-            .height = window.height,
+            .width = rect.size.width,
+            .height = rect.size.height,
         };
         la.clamp(u32, &actual_extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
         la.clamp(u32, &actual_extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
@@ -178,6 +181,7 @@ pub const Swapchain = struct {
         const app = &ctx.vk_app;
         const app_data = &ctx.vk_appdata;
         old.arena = lhmem.scratch_block();
+        _ = vk.vkGetPhysicalDeviceSurfaceCapabilitiesKHR(app_data.physical_device, app.device_wrapper.surface, &old.swapchain_support.?.capabilities);
 
         const device = app.device_wrapper.device;
         old.extent = choose_swap_extent(ctx.window, old.swapchain_support.?.capabilities);

@@ -5,6 +5,8 @@ const e = @import("windowing/events.zig");
 const lhmem = @import("../memory/memory.zig");
 const W = std.unicode.utf8ToUtf16LeStringLiteral;
 const assert = std.debug.assert;
+const base = @import("../base/base_types.zig");
+const Rectu32 = base.Rectu32;
 
 var got_something_useful: i32 = 0;
 
@@ -22,8 +24,6 @@ pub const Window = struct {
     instance: ?*anyopaque align(1),
     surface: ?*anyopaque align(1),
     display: ?*anyopaque,
-    width: u32,
-    height: u32,
     msg: raw.MSG,
     event: ?e.Event,
 
@@ -60,45 +60,11 @@ pub const Window = struct {
                             handled = true;
                             raw.PostQuitMessage(0);
                         },
-                        raw.HTLEFT => u.info("Left resize edge", .{}),
-                        raw.HTRIGHT => {
-                            var rect: raw.RECT = undefined;
-                            _ = raw.GetClientRect(@alignCast(@ptrCast(window.surface.?)), &rect);
-                            window.width = @abs(rect.right - rect.left);
-                            window.height = @abs(rect.bottom - rect.top);
-                            u.info("{any}, {d}x{d}", .{ rect, window.width, window.height });
-                        },
-                        raw.HTTOP => u.info("Top resize edge", .{}),
-                        raw.HTBOTTOM => u.info("Bottom resize edge", .{}),
-                        raw.HTTOPLEFT => u.info("Top-left resize corner", .{}),
-                        raw.HTTOPRIGHT => u.info("Top-right resize corner", .{}),
-                        raw.HTBOTTOMLEFT => u.info("Bottom-left resize corner", .{}),
-                        raw.HTBOTTOMRIGHT => u.info("Bottom-right resize corner", .{}),
-                        else => u.info("Non-client area clicked: {}", .{window.msg.wParam}),
+                        else => {},
                     }
                 },
                 raw.WM_NCLBUTTONUP => {
                     switch (window.msg.wParam) {
-                        raw.HTLEFT => u.info("Left resize edge UP", .{}),
-                        raw.HTRIGHT => {
-                            var rect: raw.RECT = undefined;
-                            _ = raw.GetClientRect(@alignCast(@ptrCast(window.surface.?)), &rect);
-                            window.width = @abs(rect.right - rect.left);
-                            window.height = @abs(rect.bottom - rect.top);
-                        },
-                        raw.HTTOP => u.info("Top resize edge", .{}),
-                        raw.HTBOTTOM => u.info("Bottom resize edge", .{}),
-                        raw.HTTOPLEFT => {
-                            u.info("Top-left resize corner UP", .{});
-                            const width: u32 = @intCast(window.msg.lParam & 0xFFFF); // Low word (width)
-                            const height: u32 = @intCast((window.msg.lParam >> 16) & 0xFFFF); // High word (height)
-                            u.info("Window resized: {}x{}", .{ width, height });
-                            window.width = width;
-                            window.height = height;
-                        },
-                        raw.HTTOPRIGHT => u.info("Top-right resize corner", .{}),
-                        raw.HTBOTTOMLEFT => u.info("Bottom-left resize corner", .{}),
-                        raw.HTBOTTOMRIGHT => u.info("Bottom-right resize corner", .{}),
                         else => u.info("Non-client area clicked: {}", .{window.msg.wParam}),
                     }
                 },
@@ -106,15 +72,7 @@ pub const Window = struct {
                     u.info("CLOSE", .{});
                     handled = true;
                 },
-                raw.WM_SIZE => {
-                    u.info("SIZE", .{});
-                    const width: u32 = @intCast(window.msg.lParam & 0xFFFF); // Low word (width)
-                    const height: u32 = @intCast((window.msg.lParam >> 16) & 0xFFFF); // High word (height)
-                    u.info("Window resized: {}x{}", .{ width, height });
-
-                    window.width = width;
-                    window.height = height;
-                },
+                raw.WM_SIZE => {},
                 raw.WM_PAINT => {},
                 raw.WM_DESTROY => {
                     u.info("DESTROY", .{});
@@ -136,12 +94,25 @@ pub const Window = struct {
                     const y: i32 = @intCast((window.msg.lParam >> 16) & 0xFFFF); // High word (height)
                     u.info("NCMOUSE: {}x{}", .{ x, y });
                 },
-                else => {
-                    u.warn("Not handled: {}", .{window.msg.message});
-                },
+                else => {},
             }
-            if (!handled) _ = raw.DefWindowProcW(window.msg.hwnd, window.msg.message, window.msg.wParam, window.msg.lParam);
+            if (!handled) {
+                _ = raw.DefWindowProcW(window.msg.hwnd, window.msg.message, window.msg.wParam, window.msg.lParam);
+            }
         }
+    }
+
+    pub fn get_size(window: *const Window) Rectu32 {
+        var rect: raw.RECT = undefined;
+        _ = raw.GetClientRect(@alignCast(@ptrCast(window.surface.?)), &rect);
+        const ret = Rectu32{
+            .size = .{
+                .width = @abs(rect.right - rect.left),
+                .height = @abs(rect.bottom - rect.top),
+                .pos = .{ .v = .{ 0, 0 } },
+            },
+        };
+        return ret;
     }
 };
 
@@ -178,8 +149,6 @@ pub fn create_window(comptime name: []const u8) Window {
         .instance = hinstance,
         .surface = hwnd,
         .display = null,
-        .width = width,
-        .height = height,
         .msg = std.mem.zeroes(raw.MSG),
         .event = std.mem.zeroes(e.Event),
     };

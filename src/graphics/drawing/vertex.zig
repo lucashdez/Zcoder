@@ -10,7 +10,12 @@ const vk = @import("../vk_api.zig").vk;
 const lhmem = @import("../../memory/memory.zig");
 const Arena = lhmem.Arena;
 
+// primitives
 const Color = @import("primitives.zig").Color;
+
+// base
+const base = @import("../../base/base_types.zig");
+
 const VertexType = enum(u32) { VtTriangle, VtRectangle };
 
 pub const RawVertex = struct {
@@ -96,7 +101,7 @@ pub const Vertex = struct {
         v.raw.pos[0] = pos.x;
         v.raw.pos[1] = pos.y;
 
-        v.raw.color = .{ @as(f32, @floatFromInt(c.r)) / 255, @as(f32, @floatFromInt(c.g)) / 255, @as(f32, @floatFromInt(c.b)) / 255, @as(f32, @floatFromInt(c.a)) / 255 };
+        v.raw.color = .{ c.r, c.g, c.b, c.a };
         v.next = null;
         return v;
     }

@@ -38,7 +38,7 @@ pub const VkApp = struct {
     lhswapchain: Swapchain,
     render_pass: vk.VkRenderPass,
     graphics_pipeline: Pipeline,
-    text_pipeline: Pipeline,
+    font_pipeline: Pipeline,
     command_pool: vk.VkCommandPool,
     vertex_buffer: vk.VkBuffer,
     vertex_buffer_size: u64,
@@ -390,16 +390,6 @@ fn choose_surface_format(available_formats: []vk.VkSurfaceFormatKHR) vk.VkSurfac
     return available_formats[0];
 }
 
-fn choose_swap_extent(window: Window, capabilities: vk.VkSurfaceCapabilitiesKHR) vk.VkExtent2D {
-    var actual_extent: vk.VkExtent2D = .{
-        .width = window.width,
-        .height = window.height,
-    };
-    la.clamp(u32, &actual_extent.width, capabilities.minImageExtent.width, capabilities.maxImageExtent.width);
-    la.clamp(u32, &actual_extent.height, capabilities.minImageExtent.height, capabilities.maxImageExtent.height);
-    return actual_extent;
-}
-
 fn create_render_pass(device: vk.VkDevice, format: u32) !vk.VkRenderPass {
     var attachment_description: vk.VkAttachmentDescription = std.mem.zeroes(vk.VkAttachmentDescription);
     attachment_description.format = format;
@@ -499,7 +489,6 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     offset.x = 0;
     offset.y = 0;
     rp_begin_info.renderArea.offset = offset;
-    u.info("[begin_command_buffer_rendering], {any}", .{app.lhswapchain.extent});
     rp_begin_info.renderArea.extent = app.lhswapchain.extent;
     var clear_value = std.mem.zeroes(vk.VkClearValue);
     clear_value.color.float32[0] = 0.0;
@@ -510,7 +499,7 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     rp_begin_info.pClearValues = &clear_value;
 
     vk.vkCmdBeginRenderPass(app.command_buffer, &rp_begin_info, vk.VK_SUBPASS_CONTENTS_INLINE);
-    vk.vkCmdBindPipeline(app.command_buffer, vk.VK_PIPELINE_BIND_POINT_GRAPHICS, app.graphics_pipeline.pipeline);
+    vk.vkCmdBindPipeline(app.command_buffer, vk.VK_PIPELINE_BIND_POINT_GRAPHICS, app.font_pipeline.pipeline);
 
     var data: ?*anyopaque = undefined;
     //var scratch = lhmem.make_arena(app.vertex_buffer_size);
@@ -649,7 +638,7 @@ pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
     //try create_swapchain(ctx);
     ctx.vk_app.render_pass = try create_render_pass(ctx.vk_app.device_wrapper.device, ctx.vk_app.lhswapchain.format.format);
     ctx.vk_app.graphics_pipeline = try Pipeline.init(ctx.vk_app.device_wrapper.device, ctx.vk_app.render_pass, ctx.vk_app.lhswapchain, .{ .topology = vk.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, .frag_path = "src/shaders/frag.spv", .vert_path = "src/shaders/vert.spv" });
-    ctx.vk_app.text_pipeline = try Pipeline.init(ctx.vk_app.device_wrapper.device, ctx.vk_app.render_pass, ctx.vk_app.lhswapchain, .{ .topology = vk.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, .frag_path = "src/shaders/frag.spv", .vert_path = "src/shaders/vert.spv" });
+    ctx.vk_app.font_pipeline = try Pipeline.init(ctx.vk_app.device_wrapper.device, ctx.vk_app.render_pass, ctx.vk_app.lhswapchain, .{ .topology = vk.VK_PRIMITIVE_TOPOLOGY_LINE_STRIP, .frag_path = "src/shaders/frag.spv", .vert_path = "src/shaders/vert.spv" });
     create_framebuffers(ctx.vk_app.device_wrapper.device, &ctx.vk_app.lhswapchain, ctx.vk_app.render_pass);
     // TODO: Continue refactor
     create_command_pool(ctx);

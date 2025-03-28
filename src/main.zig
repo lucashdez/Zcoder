@@ -14,6 +14,8 @@ const print = std.debug.print;
 const draw = @import("graphics/drawing/primitives.zig");
 const v = @import("graphics/drawing/vertex.zig");
 const VertexList = v.VertexList;
+const base = @import("base/base_types.zig");
+const Rectu32 = base.Rectu32;
 
 extern fn putenv(string: [*:0]const u8) c_int;
 
@@ -113,8 +115,8 @@ pub fn main() !void {
             _ = putenv("VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation:VK_LAYER_KHRONOS_profiles");
         }
     }
-    _ = Font;
-    _ = FontAttributes;
+    const font = try Font.load_font("Arial.ttf");
+    _ = font;
 
     var app: Application = undefined;
 
@@ -144,8 +146,7 @@ pub fn main() !void {
         }
         app.graphics_ctx.window.event.?.t = .E_NONE;
 
-        draw.drawp_rectangle(&app.graphics_ctx, .{ .x = 0, .y = 0, .w = @as(f32, @floatFromInt(app.graphics_ctx.window.width)) / 2, .h = @as(f32, @floatFromInt(app.graphics_ctx.window.height)) }, draw.Color.create(0xFF0000FF));
-        draw.drawp_rectangle(&app.graphics_ctx, .{ .x = 100, .y = 100, .w = @as(f32, @floatFromInt(app.graphics_ctx.window.width)) / 2, .h = @as(f32, @floatFromInt(app.graphics_ctx.window.height)) }, draw.Color.create(0x00FF00FF));
+        draw.drawp_rectangle(&app.graphics_ctx, .{ .size = .{ .pos = .{ .pos = .{ .x = 100, .y = 200 } }, .width = 50, .height = 100 } }, draw.Color.create(0xFF0000FF));
 
         if (try lhvk.prepare_frame(&app.graphics_ctx)) continue;
         lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
