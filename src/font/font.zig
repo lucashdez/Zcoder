@@ -5,27 +5,27 @@ const Arena = lhmem.Arena;
 const assert = std.debug.assert;
 const cmap = @import("cmap.zig");
 
-const fu = struct {
-    fn read_u16(pos: usize, stream: []const u8) u16 {
+pub const fu = struct {
+    pub fn read_u16(pos: usize, stream: []const u8) u16 {
         return (stream[pos] << 8) & (stream[pos + 1]);
     }
 
-    fn read_u16m(pos: *usize, stream: []const u8) u16 {
+    pub fn read_u16m(pos: *usize, stream: []const u8) u16 {
         defer pos.* += 2;
         const ret: u16 = (@as(u16, stream[pos.*]) << 8) | (stream[pos.* + 1]);
         return ret;
     }
 
-    fn read_u32(pos: usize, stream: []const u8) u32 {
+    pub fn read_u32(pos: usize, stream: []const u8) u32 {
         return std.mem.bytesToValue(u32, stream[pos .. pos + 4]);
     }
 
-    fn read_nu8m(pos: *usize, stream: []const u8, nu8: usize) []const u8 {
+    pub fn read_nu8m(pos: *usize, stream: []const u8, nu8: usize) []const u8 {
         defer pos.* += nu8;
         return stream[pos.* .. pos.* + nu8];
     }
 
-    fn read_u32m(pos: *usize, stream: []const u8) u32 {
+    pub fn read_u32m(pos: *usize, stream: []const u8) u32 {
         defer pos.* += 4;
         const ret = (@as(u32, stream[pos.*]) << 24) | (@as(u32, stream[pos.* + 1]) << 16) | (@as(u32, stream[pos.* + 2]) << 8) | (@as(u32, stream[pos.* + 3]));
         return ret;
