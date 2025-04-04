@@ -7,7 +7,8 @@ const cmap = @import("cmap.zig");
 
 pub const fu = struct {
     pub fn read_u16(pos: usize, stream: []const u8) u16 {
-        return (stream[pos] << 8) & (stream[pos + 1]);
+        const ret: u16 = (@as(u16, stream[pos]) << 8) | (stream[pos + 1]);
+        return ret;
     }
 
     pub fn read_u16m(pos: *usize, stream: []const u8) u16 {
@@ -124,6 +125,7 @@ pub fn load_font(name: []const u8) !FontAttributes {
     }
     font_dir.tbl_dir = tables[0..font_dir.off_sub.num_tables];
     font_dir.print();
+    std.debug.print("\n\n", .{});
 
     const off = font_dir.find_table("cmap");
     _ = cmap.read(off, buff);
