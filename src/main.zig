@@ -115,7 +115,8 @@ pub fn main() !void {
             _ = putenv("VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation:VK_LAYER_KHRONOS_profiles");
         }
     }
-    const font = try Font.load_font("Arial.ttf");
+
+    const font = try Font.load_font("Envy Code R.ttf");
     _ = font;
 
     var app: Application = undefined;

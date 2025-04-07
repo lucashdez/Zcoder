@@ -3,9 +3,19 @@ const lhmem = @import("../memory/memory.zig");
 const TARGET_OS = @import("builtin").os.tag;
 const Arena = lhmem.Arena;
 const assert = std.debug.assert;
+
+// TABLES
 const cmap = @import("cmap.zig");
+const head = @import("head.zig");
+const loca = @import("loca.zig");
+const glyf = @import("glyf.zig");
 
 pub const fu = struct {
+    pub fn read_nu8m(pos: *usize, stream: []const u8, nu8: usize) []const u8 {
+        defer pos.* += nu8;
+        return stream[pos.* .. pos.* + nu8];
+    }
+
     pub fn read_u16(pos: usize, stream: []const u8) u16 {
         const ret: u16 = (@as(u16, stream[pos]) << 8) | (stream[pos + 1]);
         return ret;
@@ -17,18 +27,45 @@ pub const fu = struct {
         return ret;
     }
 
-    pub fn read_u32(pos: usize, stream: []const u8) u32 {
-        return std.mem.bytesToValue(u32, stream[pos .. pos + 4]);
+    pub fn read_i16m(pos: *usize, stream: []const u8) i16 {
+        defer pos.* += 2;
+        const ret: i16 = (@as(i16, stream[pos.*]) << 8) | (stream[pos.* + 1]);
+        return ret;
     }
 
-    pub fn read_nu8m(pos: *usize, stream: []const u8, nu8: usize) []const u8 {
-        defer pos.* += nu8;
-        return stream[pos.* .. pos.* + nu8];
+    pub fn read_u32(pos: usize, stream: []const u8) u32 {
+        return std.mem.bytesToValue(u32, stream[pos .. pos + 4]);
     }
 
     pub fn read_u32m(pos: *usize, stream: []const u8) u32 {
         defer pos.* += 4;
         const ret = (@as(u32, stream[pos.*]) << 24) | (@as(u32, stream[pos.* + 1]) << 16) | (@as(u32, stream[pos.* + 2]) << 8) | (@as(u32, stream[pos.* + 3]));
+        return ret;
+    }
+
+    pub fn read_u64m(pos: *usize, stream: []const u8) u64 {
+        defer pos.* += 2;
+        const ret: u64 = (@as(u64, stream[pos.*]) << 56) 
+            | (@as(u64, stream[pos.* + 1]) << 48) 
+            | (@as(u64, stream[pos.* + 2]) << 40) 
+            | (@as(u64, stream[pos.* + 3]) << 32) 
+            | (@as(u64, stream[pos.* + 4]) << 24) 
+            | (@as(u64, stream[pos.* + 5]) << 16) 
+            | (@as(u64, stream[pos.* + 6]) << 8)
+            | (@as(u64, stream[pos.* + 7]));
+        return ret;
+    }
+
+    pub fn read_i64m(pos: *usize, stream: []const u8) i64 {
+        defer pos.* += 2;
+        const ret: i64 = (@as(i64, stream[pos.*]) << 56) 
+            | (@as(i64, stream[pos.* + 1]) << 48) 
+            | (@as(i64, stream[pos.* + 2]) << 40) 
+            | (@as(i64, stream[pos.* + 3]) << 32) 
+            | (@as(i64, stream[pos.* + 4]) << 24) 
+            | (@as(i64, stream[pos.* + 5]) << 16) 
+            | (@as(i64, stream[pos.* + 6]) << 8)
+            | (@as(i64, stream[pos.* + 7]));
         return ret;
     }
 };
@@ -100,7 +137,8 @@ pub fn load_font(name: []const u8) !FontAttributes {
     const allocator = std.heap.page_allocator;
     var path: []const u8 = undefined;
     if (TARGET_OS == .windows) {
-        path = "C:/Windows/Fonts/";
+        //path = "C:/Windows/Fonts/";
+        path = "C:/projects/zcoder/font/";
     } else {
         path = "/usr/share/fonts/";
     }
@@ -127,8 +165,16 @@ pub fn load_font(name: []const u8) !FontAttributes {
     font_dir.print();
     std.debug.print("\n\n", .{});
 
-    const off = font_dir.find_table("cmap");
-    _ = cmap.read(off, buff);
+    var off = font_dir.find_table("cmap");
+    const cmap_table = cmap.read(off, buff);
+    off = font_dir.find_table("head");
+    const loca_type = head.loca_type(off, buff);
+    off = font_dir.find_table("loca");
+    const a_index = cmap_table.format.get_glyph_index('A', buff);
+    const a_offset = loca.get_glyph_offset(off, a_index,loca_type, buff);
+    off = font_dir.find_table("glyf");
+    const glyph_table = glyf.read(off + a_offset, buff);
+    std.log.debug("{any}\n", .{glyph_table});
 
     return FontAttributes{ .arena = arena, .name = name, .face = undefined, .tables = font_dir };
 }
