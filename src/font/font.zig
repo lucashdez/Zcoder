@@ -45,27 +45,13 @@ pub const fu = struct {
 
     pub fn read_u64m(pos: *usize, stream: []const u8) u64 {
         defer pos.* += 2;
-        const ret: u64 = (@as(u64, stream[pos.*]) << 56) 
-            | (@as(u64, stream[pos.* + 1]) << 48) 
-            | (@as(u64, stream[pos.* + 2]) << 40) 
-            | (@as(u64, stream[pos.* + 3]) << 32) 
-            | (@as(u64, stream[pos.* + 4]) << 24) 
-            | (@as(u64, stream[pos.* + 5]) << 16) 
-            | (@as(u64, stream[pos.* + 6]) << 8)
-            | (@as(u64, stream[pos.* + 7]));
+        const ret: u64 = (@as(u64, stream[pos.*]) << 56) | (@as(u64, stream[pos.* + 1]) << 48) | (@as(u64, stream[pos.* + 2]) << 40) | (@as(u64, stream[pos.* + 3]) << 32) | (@as(u64, stream[pos.* + 4]) << 24) | (@as(u64, stream[pos.* + 5]) << 16) | (@as(u64, stream[pos.* + 6]) << 8) | (@as(u64, stream[pos.* + 7]));
         return ret;
     }
 
     pub fn read_i64m(pos: *usize, stream: []const u8) i64 {
         defer pos.* += 2;
-        const ret: i64 = (@as(i64, stream[pos.*]) << 56) 
-            | (@as(i64, stream[pos.* + 1]) << 48) 
-            | (@as(i64, stream[pos.* + 2]) << 40) 
-            | (@as(i64, stream[pos.* + 3]) << 32) 
-            | (@as(i64, stream[pos.* + 4]) << 24) 
-            | (@as(i64, stream[pos.* + 5]) << 16) 
-            | (@as(i64, stream[pos.* + 6]) << 8)
-            | (@as(i64, stream[pos.* + 7]));
+        const ret: i64 = (@as(i64, stream[pos.*]) << 56) | (@as(i64, stream[pos.* + 1]) << 48) | (@as(i64, stream[pos.* + 2]) << 40) | (@as(i64, stream[pos.* + 3]) << 32) | (@as(i64, stream[pos.* + 4]) << 24) | (@as(i64, stream[pos.* + 5]) << 16) | (@as(i64, stream[pos.* + 6]) << 8) | (@as(i64, stream[pos.* + 7]));
         return ret;
     }
 };
@@ -171,10 +157,10 @@ pub fn load_font(name: []const u8) !FontAttributes {
     const loca_type = head.loca_type(off, buff);
     off = font_dir.find_table("loca");
     const a_index = cmap_table.format.get_glyph_index('A', buff);
-    const a_offset = loca.get_glyph_offset(off, a_index,loca_type, buff);
+    const a_offset = loca.get_glyph_offset(off, a_index, loca_type, buff);
     off = font_dir.find_table("glyf");
     const glyph_table = glyf.read(off + a_offset, buff);
-    std.log.debug("{any}\n", .{glyph_table});
+    _ = glyph_table;
 
     return FontAttributes{ .arena = arena, .name = name, .face = undefined, .tables = font_dir };
 }
