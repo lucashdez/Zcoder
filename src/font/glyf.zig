@@ -50,9 +50,9 @@ pub const Glyph = struct {
         var res = self.arena.push_array(Vec2f, memrev)[0..memrev];
         // iterate through array
         for (0..self.flags.len) |i| {
-            if (self.flags[i] == .on_curve) {
-                res[i].x = self.x_coords[i];
-                res[i].y = self.y_coords[i];
+            if (self.flags[i].on_curve) {
+                res[i].x = @floatFromInt(self.x_coords[i]);
+                res[i].y = @floatFromInt(self.y_coords[i]);
             } else {}
         }
         return res;
