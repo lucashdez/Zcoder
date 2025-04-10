@@ -14,6 +14,7 @@ const la = @import("../../lin_alg/la.zig");
 const base = @import("../../base/base_types.zig");
 const Rectu32 = base.Rectu32;
 const Rectf32 = base.Rectf32;
+const TARGET_OS = @import("builtin").target.os.tag;
 
 pub const Color = struct {
     r: f32,
@@ -58,4 +59,18 @@ pub fn drawp_rectangle(ctx: *LhvkGraphicsCtx, r: Rectf32, color: Color) void {
     ctx.current_vertex_group.sll_push_back(top_right);
     ctx.current_vertex_group.sll_push_back(bottom_left);
     ctx.current_vertex_group.sll_push_back(bottom_right);
+}
+
+pub fn drawp_vertex(ctx: *LhvkGraphicsCtx, pos: struct { x: f32, y: f32 }, color: Color) void {
+    const winrect: Rectu32 = ctx.window.get_size();
+    if (TARGET_OS == .windows) {
+        const offset = ctx.window.get_size();
+        const topdownsize: u32 = offset.size.height;
+        // FIXME(lucashdez): THIS CANNOT BE LIKE THIS
+        const v = Vertex.init(&ctx.current_vertex_group.arena, la.vec2f(la.normalize(f32, pos.x, @floatFromInt(winrect.size.width)), la.normalize(f32, (@as(f32, @floatFromInt(topdownsize)) - pos.y), @floatFromInt(winrect.size.height))), color);
+        ctx.current_vertex_group.sll_push_back(v);
+    } else {
+        const v = Vertex.init(&ctx.current_vertex_group.arena, la.vec2f(la.normalize(f32, pos.x, @floatFromInt(winrect.size.width)), la.normalize(f32, pos.y, @floatFromInt(winrect.size.height))), color);
+        ctx.current_vertex_group.sll_push_back(v);
+    }
 }

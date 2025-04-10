@@ -16,6 +16,11 @@ pub const fu = struct {
         return stream[pos.* .. pos.* + nu8];
     }
 
+    pub fn read_u8m(pos: *usize, stream: []const u8) u8 {
+        defer pos.* += 1;
+        return stream[pos.*];
+    }
+
     pub fn read_u16(pos: usize, stream: []const u8) u16 {
         const ret: u16 = (@as(u16, stream[pos]) << 8) | (stream[pos + 1]);
         return ret;
@@ -108,7 +113,9 @@ const font_directory = struct {
     }
 };
 
-pub const FontFace = struct {};
+pub const FontFace = struct {
+    glyph: glyf.Glyph,
+};
 
 pub const FontAttributes = struct {
     arena: Arena,
@@ -160,7 +167,6 @@ pub fn load_font(name: []const u8) !FontAttributes {
     const a_offset = loca.get_glyph_offset(off, a_index, loca_type, buff);
     off = font_dir.find_table("glyf");
     const glyph_table = glyf.read(off + a_offset, buff);
-    _ = glyph_table;
 
-    return FontAttributes{ .arena = arena, .name = name, .face = undefined, .tables = font_dir };
+    return FontAttributes{ .arena = arena, .name = name, .face = .{ .glyph = glyph_table }, .tables = font_dir };
 }

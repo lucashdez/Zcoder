@@ -21,6 +21,7 @@ extern fn putenv(string: [*:0]const u8) c_int;
 
 const Application = struct {
     graphics_ctx: lhvk.LhvkGraphicsCtx,
+    font: FontAttributes,
 };
 
 const Buffer = struct {
@@ -107,6 +108,10 @@ pub fn line_length(text: *const std.ArrayList(u8), line: usize) usize {
     return len;
 }
 
+fn load_font(app: *Application, name: []const u8) !void {
+    app.font = try Font.load_font(name);
+}
+
 pub fn main() !void {
     if (__DEBUG__) {
         if (TARGET_OS == .windows) {
@@ -115,15 +120,12 @@ pub fn main() !void {
             _ = putenv("VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation:VK_LAYER_KHRONOS_profiles");
         }
     }
-
-    const font = try Font.load_font("Envy Code R.ttf");
-    _ = font;
-
     var app: Application = undefined;
-
-    app.graphics_ctx.window = windowing.create_window("algo");
     app.graphics_ctx.vk_app.arena = lhmem.make_arena((1 << 10) * 100);
     app.graphics_ctx.vk_appdata.arena = lhmem.make_arena((1 << 10) * 100);
+    const thr = try std.Thread.spawn(.{}, load_font, .{ &app, "Envy Code R.ttf" });
+
+    app.graphics_ctx.window = windowing.create_window("algo");
     try lhvk.init_vulkan(&app.graphics_ctx);
     var buffer: Buffer = Buffer.create_buffer();
 
@@ -146,12 +148,18 @@ pub fn main() !void {
             app.graphics_ctx.window.event.?.t = .E_NONE;
         }
         app.graphics_ctx.window.event.?.t = .E_NONE;
+        const points = app.font.face.glyph.generate_points(5);
 
-        draw.drawp_rectangle(&app.graphics_ctx, .{ .size = .{ .pos = .{ .pos = .{ .x = 100, .y = 200 } }, .width = 50, .height = 100 } }, draw.Color.create(0xFF0000FF));
+        for (points) |p| {
+            // TODO : Points upside down?
+            draw.drawp_vertex(&app.graphics_ctx, .{ .x = p.x / 8, .y = p.y / 8 }, draw.Color.create(0xFFFFFFFF));
+        }
 
         if (try lhvk.prepare_frame(&app.graphics_ctx)) continue;
         lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
         try lhvk.end_command_buffer_rendering(&app.graphics_ctx);
     }
+    thr.join();
+
     try buffer.save_file();
 }
