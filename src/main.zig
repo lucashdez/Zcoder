@@ -131,6 +131,7 @@ pub fn main() !void {
 
     var quit: bool = false;
     while (!quit) {
+        var frame_arena: Arena = lhmem.make_arena(lhmem.KB(16));
         app.graphics_ctx.current_vertex_group = VertexList{
             .arena = lhmem.make_arena((1 << 10) * 20),
             .first = null,
@@ -148,7 +149,7 @@ pub fn main() !void {
             app.graphics_ctx.window.event.?.t = .E_NONE;
         }
         app.graphics_ctx.window.event.?.t = .E_NONE;
-        const points = app.font.face.glyph.generate_points(5);
+        const points = app.font.face.glyph.generate_points(&frame_arena, 5);
 
         for (points) |p| {
             // TODO : Points upside down?

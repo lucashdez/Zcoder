@@ -38,7 +38,7 @@ pub const Glyph = struct {
     flags: []GlyphFlags,
     x_coords: []i16,
     y_coords: []i16,
-    pub fn generate_points(self: *Glyph, subdivision: u32) []Vec2f {
+    pub fn generate_points(self: *Glyph, arena: *Arena, subdivision: u32) []Vec2f {
         const count_off_curve: u32 = blk: {
             var count: u32 = 0;
             for (0..self.flags.len) |i| {
@@ -47,34 +47,47 @@ pub const Glyph = struct {
             break :blk count;
         };
         const memrev = self.x_coords.len + count_off_curve * subdivision;
-        var res = self.arena.push_array(Vec2f, memrev)[0..memrev];
+        var res: []Vec2f = arena.push_array(Vec2f, memrev)[0..memrev];
+        var offset: usize = 0;
         // iterate through array
         for (0..self.flags.len) |i| {
             if (self.flags[i].on_curve) {
-                res[i].x = @floatFromInt(self.x_coords[i]);
-                res[i].y = @floatFromInt(self.y_coords[i]);
-            } else {}
+                res[i + offset].x = @floatFromInt(self.x_coords[i]);
+                res[i + offset].y = @floatFromInt(self.y_coords[i]);
+            } else {
+                const p0: Vec2f = res[i + offset - 1];
+                const p1: Vec2f = .{.x = @floatFromInt(self.x_coords[i]), .y = @floatFromInt(self.y_coords[i])};
+                var p2: Vec2f = .{.x = @floatFromInt(self.x_coords[i + 1]), .y = @floatFromInt(self.y_coords[i + 1])};
+                if (!self.flags[i+1].on_curve) {
+                    p2.x = p1.x + (p2.x - p1.x)/2.0;
+                    p2.y = p1.y + (p2.y - p1.y)/2.0;
+                }
+                tesselate_bezier(&res, i + offset, subdivision, p0, p1, p2);
+                offset += subdivision;
+            }
         }
         return res;
     }
-    fn tesselate_bezier(out: []Vec2f, idx: usize, subdivision: u32, p0: Vec2f, p1: Vec2f, p2: Vec2f) void {
-        const step_per_iter: f32 = 1.0 / subdivision;
-        for (idx..subdivision + idx) |i| {
-            const t = i * step_per_iter;
-            const t1 = (1.0 - t);
-            const t2 = t * t;
-            const x = t1 * t1 * p0.x + 2 * t1 * t * p1.x + t2 * p2.x;
-            const y = t1 * t1 * p0.y + 2 * t1 * t * p1.y + t2 * p2.y;
-            out[i].x = x;
-            out[i].y = y;
-        }
-    }
 };
+
+fn tesselate_bezier(out: *[]Vec2f, idx: usize, subdivision: u32, p0: Vec2f, p1: Vec2f, p2: Vec2f) void {
+    const step_per_iter: f64 = 1.0 / @as(f64, @floatFromInt(subdivision));
+    for (0..subdivision) |i| {
+        const t = @as(f64, @floatFromInt(i)) * step_per_iter;
+        const t1 = (1.0 - t);
+        const t2 = t * t;
+        const x = t1 * t1 * p0.x + 2 * t1 * t * p1.x + t2 * p2.x;
+        const y = t1 * t1 * p0.y + 2 * t1 * t * p1.y + t2 * p2.y;
+        out.*[idx + i].x = @as(f32, @floatCast(x));
+        out.*[idx + i].y = @as(f32, @floatCast(y));
+        std.log.debug("({}) x: {}, y: {}, t: {}, step: {}", .{idx, @as(i32, @intFromFloat(x)), @as(i32, @intFromFloat(y)), t, step_per_iter});
+    }
+}
 
 pub fn read(offset: usize, buf: []const u8) Glyph {
     var pos: usize = offset;
     var glyph: Glyph = undefined;
-    glyph.arena = lhmem.make_arena(lhmem.KB(26));
+    glyph.arena = lhmem.make_arena(lhmem.KB(32));
     glyph.number_of_contours = fu.read_u16m(&pos, buf);
     glyph.xMin = fu.read_i16m(&pos, buf);
     glyph.yMin = fu.read_i16m(&pos, buf);
@@ -105,7 +118,7 @@ pub fn read(offset: usize, buf: []const u8) Glyph {
             i += 1;
         }
     }
-    //TODO(lucashdez) read xcoords and ycoords
+
     glyph.x_coords = glyph.arena.push_array(i16, last_index + 1)[0 .. last_index + 1];
     glyph.y_coords = glyph.arena.push_array(i16, last_index + 1)[0 .. last_index + 1];
     var prev_x_coord: i16 = 0;

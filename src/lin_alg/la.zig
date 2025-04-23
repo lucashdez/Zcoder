@@ -30,15 +30,11 @@ pub fn vec2f_div(a: Vec2f, b: Vec2f) Vec2f {
     return Vec2f{ .x = a.x / b.x, .y = a.y / b.y };
 }
 
-pub const Vec4f = struct {
-    i: f32, j: f32, k: f32, t: f32
-};
+pub const Vec4f = struct { i: f32, j: f32, k: f32, t: f32 };
 
 pub fn vec4f(i: f32, j: f32, k: f32, t: f32) Vec4f {
-    return Vec4f{ .i = i , .j = j, .k = k, .t = t };
+    return Vec4f{ .i = i, .j = j, .k = k, .t = t };
 }
-
-
 
 pub fn clamp(comptime T: type, value: *T, min: T, max: T) void {
     if (value.* < min) value.* = min;
@@ -46,5 +42,10 @@ pub fn clamp(comptime T: type, value: *T, min: T, max: T) void {
 }
 
 pub fn normalize(comptime T: type, value: T, norm: T) T {
-    return (value / norm) - 1 ; // vulkan goes from -1,-1 to 1,1
+    return (value / norm) - 1; // vulkan goes from -1,-1 to 1,1
 }
+
+pub const Vec2u = struct {
+    x: u32,
+    y: u32,
+};
