@@ -56,13 +56,13 @@ pub const Glyph = struct {
                 res[i + offset].y = @floatFromInt(self.y_coords[i]);
             } else {
                 const p0: Vec2f = res[i + offset - 1];
-                const p1: Vec2f = .{.x = @floatFromInt(self.x_coords[i]), .y = @floatFromInt(self.y_coords[i])};
-                var p2: Vec2f = .{.x = @floatFromInt(self.x_coords[i + 1]), .y = @floatFromInt(self.y_coords[i + 1])};
-                if (!self.flags[i+1].on_curve) {
-                    p2.x = p1.x + (p2.x - p1.x)/2.0;
-                    p2.y = p1.y + (p2.y - p1.y)/2.0;
+                const p1: Vec2f = .{ .x = @floatFromInt(self.x_coords[i]), .y = @floatFromInt(self.y_coords[i]) };
+                var p2: Vec2f = .{ .x = @floatFromInt(self.x_coords[i + 1]), .y = @floatFromInt(self.y_coords[i + 1]) };
+                if (!self.flags[i + 1].on_curve) {
+                    p2.x = p1.x + (p2.x - p1.x) / 2.0;
+                    p2.y = p1.y + (p2.y - p1.y) / 2.0;
                 }
-                tesselate_bezier(&res, i + offset, subdivision, p0, p1, p2);
+                tesselate_bezier(&res, i + offset + 1, subdivision, p0, p1, p2);
                 offset += subdivision;
             }
         }
@@ -80,7 +80,7 @@ fn tesselate_bezier(out: *[]Vec2f, idx: usize, subdivision: u32, p0: Vec2f, p1: 
         const y = t1 * t1 * p0.y + 2 * t1 * t * p1.y + t2 * p2.y;
         out.*[idx + i].x = @as(f32, @floatCast(x));
         out.*[idx + i].y = @as(f32, @floatCast(y));
-        std.log.debug("({}) x: {}, y: {}, t: {}, step: {}", .{idx, @as(i32, @intFromFloat(x)), @as(i32, @intFromFloat(y)), t, step_per_iter});
+        std.log.debug("({}) x: {}, y: {}, t: {}, step: {}", .{ idx, @as(i32, @intFromFloat(x)), @as(i32, @intFromFloat(y)), t, step_per_iter });
     }
 }
 
