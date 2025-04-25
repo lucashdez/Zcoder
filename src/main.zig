@@ -136,6 +136,7 @@ pub fn main() !void {
             .arena = lhmem.make_arena((1 << 10) * 20),
             .first = null,
             .last = null,
+            .next = null,
         };
         app.graphics_ctx.window.get_events();
         if (app.graphics_ctx.window.event) |event| {
@@ -149,10 +150,16 @@ pub fn main() !void {
             app.graphics_ctx.window.event.?.t = .E_NONE;
         }
         app.graphics_ctx.window.event.?.t = .E_NONE;
-        const points = app.font.face.glyph.generate_points(&frame_arena, 5);
+        const glyph = app.font.face.glyph.generate_glyph(&frame_arena, 5);
 
-        for (points) |p| {
-            // TODO : Points upside down?
+        var j = 0;
+        for (0..glyph.end_indexes_for_strokes) |i| {
+            var list_ptr: *VertexList = frame_arena.push_array(VertexList, 1);
+            list_ptr.arena = lhmem.scratch_block();
+            app.graphics_ctx.current_vertex_group.sll_push_back(list_ptr);
+
+            for (j..glyph.end_indexes_for_strokes[i]) {
+            }
             draw.drawp_vertex(&app.graphics_ctx, .{ .x = p.x / 8, .y = p.y / 8 }, draw.Color.create(0xFFFFFFFF));
         }
 

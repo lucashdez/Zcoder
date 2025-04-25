@@ -25,6 +25,11 @@ const GlyphFlags = packed struct {
     reserved2: bool,
 };
 
+pub const GeneratedGlyph = struct {
+    vertex: []Vec2f,
+    end_indexes_for_strokes: []usize,
+};
+
 pub const Glyph = struct {
     arena: Arena,
     number_of_contours: u16,
@@ -38,7 +43,8 @@ pub const Glyph = struct {
     flags: []GlyphFlags,
     x_coords: []i16,
     y_coords: []i16,
-    pub fn generate_points(self: *Glyph, arena: *Arena, subdivision: u32) []Vec2f {
+
+    pub fn generate_glyph(self: *Glyph, arena: *Arena, subdivision: u32) GeneratedGlyph {
         const count_off_curve: u32 = blk: {
             var count: u32 = 0;
             for (0..self.flags.len) |i| {
@@ -46,27 +52,79 @@ pub const Glyph = struct {
             }
             break :blk count;
         };
-        const memrev = self.x_coords.len + count_off_curve * subdivision;
+        const memrev = self.x_coords.len + count_off_curve * (subdivision);
         var res: []Vec2f = arena.push_array(Vec2f, memrev)[0..memrev];
-        var offset: usize = 0;
+        var end_indexes: []usize = arena.push_array(usize, self.number_of_contours)[0..self.number_of_contours];
+        var j: usize = 0;
+        var res_index: usize = 0;
         // iterate through array
-        for (0..self.flags.len) |i| {
-            if (self.flags[i].on_curve) {
-                res[i + offset].x = @floatFromInt(self.x_coords[i]);
-                res[i + offset].y = @floatFromInt(self.y_coords[i]);
-            } else {
-                const p0: Vec2f = res[i + offset - 1];
-                const p1: Vec2f = .{ .x = @floatFromInt(self.x_coords[i]), .y = @floatFromInt(self.y_coords[i]) };
-                var p2: Vec2f = .{ .x = @floatFromInt(self.x_coords[i + 1]), .y = @floatFromInt(self.y_coords[i + 1]) };
-                if (!self.flags[i + 1].on_curve) {
-                    p2.x = p1.x + (p2.x - p1.x) / 2.0;
-                    p2.y = p1.y + (p2.y - p1.y) / 2.0;
+        for (0..self.number_of_contours) |i| {
+            const contour_start_index: usize = j;
+            const generated_points_start_index: usize = res_index;
+            var contour_start: bool = true;
+            var contour_started: bool = false;
+            while (j <= self.end_pts_of_contours[i]) {
+                defer j += 1;
+                var x: f32 = @floatFromInt(self.x_coords[j]);
+                var y: f32 = @floatFromInt(self.y_coords[j]);
+
+                const contour_len: usize = self.end_pts_of_contours[i] - contour_start_index + 1;
+                //const cur_index = j;
+                const next_index = (j + 1 - contour_start_index) % contour_len + contour_start_index;
+
+                if (self.flags[j].on_curve) {
+                    res[res_index].x = x;
+                    res[res_index].y = y;
+                    res_index += 1;
+                } else {
+                    if (contour_start) {
+                        contour_started = true;
+                        if (self.flags[next_index].on_curve) {
+                            res[res_index].x = @floatFromInt(self.x_coords[next_index]);
+                            res[res_index].y = @floatFromInt(self.y_coords[next_index]);
+                            res_index += 1;
+                            continue;
+                        }
+                        x = x + (@as(f32, @floatFromInt(self.x_coords[next_index])) - x) / 2.0;
+                        y = y + (@as(f32, @floatFromInt(self.y_coords[next_index])) - y) / 2.0;
+                        res[res_index].x = x;
+                        res[res_index].y = y;
+                        res_index += 1;
+                    }
+
+                    const p0: Vec2f = res[res_index - 1];
+                    const p1: Vec2f = .{ .x = x, .y = y };
+                    var p2: Vec2f = .{ .x = @floatFromInt(self.x_coords[next_index]), .y = @floatFromInt(self.y_coords[next_index]) };
+                    if (!self.flags[next_index].on_curve) {
+                        p2.x = p1.x + (p2.x - p1.x) / 2.0;
+                        p2.y = p1.y + (p2.y - p1.y) / 2.0;
+                    } else {
+                        j += 1;
+                    }
+                    tesselate_bezier(&res, res_index, subdivision, p0, p1, p2);
+                    res_index += subdivision;
+                    contour_start = false;
                 }
-                tesselate_bezier(&res, i + offset + 1, subdivision, p0, p1, p2);
-                offset += subdivision;
             }
+
+            if (self.flags[j - 1].on_curve) {
+                res[res_index] = res[generated_points_start_index];
+                res_index += 1;
+            }
+            if (contour_started) {
+                const p0: Vec2f = res[res_index - 1];
+                const p1: Vec2f = .{ .x = @floatFromInt(self.x_coords[contour_start_index]), .y = @floatFromInt(self.y_coords[contour_start_index]) };
+                const p2: Vec2f = res[generated_points_start_index];
+                tesselate_bezier(&res, res_index, subdivision, p0, p1, p2);
+                res_index += 1;
+            }
+            end_indexes[i] = res_index;
         }
-        return res;
+        while (res_index < res.len) {
+            res[res_index] = res[res_index - 1];
+            res_index += 1;
+        }
+        return GeneratedGlyph{ .vertex = res, .end_indexes_for_strokes = end_indexes };
     }
 };
 
@@ -80,7 +138,7 @@ fn tesselate_bezier(out: *[]Vec2f, idx: usize, subdivision: u32, p0: Vec2f, p1: 
         const y = t1 * t1 * p0.y + 2 * t1 * t * p1.y + t2 * p2.y;
         out.*[idx + i].x = @as(f32, @floatCast(x));
         out.*[idx + i].y = @as(f32, @floatCast(y));
-        std.log.debug("({}) x: {}, y: {}, t: {}, step: {}", .{ idx, @as(i32, @intFromFloat(x)), @as(i32, @intFromFloat(y)), t, step_per_iter });
+        //std.log.debug("({}) x: {}, y: {}, t: {}, step: {}", .{ idx, @as(i32, @intFromFloat(x)), @as(i32, @intFromFloat(y)), t, step_per_iter });
     }
 }
 

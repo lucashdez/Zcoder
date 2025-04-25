@@ -23,10 +23,30 @@ pub const RawVertex = struct {
     color: [4]f32,
 };
 
+pub const VertexGroup = struct {
+    first: ?*VertexList,
+    last: ?*VertexList,
+    pub fn sll_push_back(list: *VertexGroup, new: *VertexList) void {
+        if (list.first) |f| {
+            if (f == list.last.?) {
+                f.next = new;
+                list.last = new;
+            } else {
+                list.last.?.next = new;
+                list.last = new;
+            }
+        } else {
+            list.first = new;
+            list.last = new;
+        }
+    }
+};
+
 pub const VertexList = struct {
     arena: Arena,
     first: ?*Vertex,
     last: ?*Vertex,
+    next: ?*VertexList,
 
     pub fn sll_push_back(list: *VertexList, new: *Vertex) void {
         if (list.first) |f| {
