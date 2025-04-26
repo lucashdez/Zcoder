@@ -158,9 +158,11 @@ pub fn main() !void {
             list_ptr.arena = lhmem.scratch_block();
             app.graphics_ctx.current_vertex_group.sll_push_back(list_ptr);
 
-            for (j..glyph.end_indexes_for_strokes[i]) {
+            while (j < glyph.end_indexes_for_strokes[i]) {
+                const p: la.Vec2f = glyph.vertex[j];
+                draw.drawp_vertex(&app.graphics_ctx, .{ .x = p.x / 8, .y = p.y / 8 }, draw.Color.create(0xFFFFFFFF));
+                j += 1;
             }
-            draw.drawp_vertex(&app.graphics_ctx, .{ .x = p.x / 8, .y = p.y / 8 }, draw.Color.create(0xFFFFFFFF));
         }
 
         if (try lhvk.prepare_frame(&app.graphics_ctx)) continue;

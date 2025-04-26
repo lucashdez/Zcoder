@@ -1,11 +1,13 @@
 const std = @import("std");
+const TARGET_OS = @import("builtin").target.os.tag;
 const lhvk = @import("../lhvk.zig");
 const lhmem = @import("../../memory/memory.zig");
 const Arena = lhmem.Arena;
 const u = @import("../lhvk_utils.zig");
 const vk = @import("../vk_api.zig").vk;
 const win32 = @import("../win32.zig");
-const Window = win32.Window;
+const linux = @import("../x.zig");
+const Window = if (TARGET_OS == .windows) win32.Window else linux.Window;
 const la = @import("../../lin_alg/la.zig");
 const base = @import("../../base/base_types.zig");
 const Rectu32 = base.Rectu32;
