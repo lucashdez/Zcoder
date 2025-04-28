@@ -7,6 +7,24 @@ pub const Arena = struct {
     pos: usize,
     cap: usize,
 
+    pub fn push_item(arena: *Arena, comptime T: type) *T {
+        const size = @sizeOf(T);
+        const alignment = @alignOf(T);
+        var ptr: *const u8 = &arena.mem[arena.pos];
+        if (@intFromPtr(ptr) % alignment == 0) {
+            // Aligned
+            arena.pos += size;
+            return @alignCast(@ptrCast(@constCast(ptr)));
+        } else {
+            while (!(@intFromPtr(ptr) % alignment == 0)) {
+                arena.pos += 1;
+                ptr = &arena.mem[arena.pos];
+            }
+            arena.pos += size;
+            return @alignCast(@ptrCast(@constCast(ptr)));
+        }
+    }
+
     pub fn push_array(arena: *Arena, comptime T: type, count: usize) [*]T {
         const size = @sizeOf(T) * count;
         const alignment = @alignOf(T);

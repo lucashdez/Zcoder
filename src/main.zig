@@ -14,6 +14,7 @@ const print = std.debug.print;
 const draw = @import("graphics/drawing/primitives.zig");
 const v = @import("graphics/drawing/vertex.zig");
 const VertexList = v.VertexList;
+const VertexGroup = v.VertexGroup;
 const base = @import("base/base_types.zig");
 const Rectu32 = base.Rectu32;
 
@@ -132,11 +133,9 @@ pub fn main() !void {
     var quit: bool = false;
     while (!quit) {
         var frame_arena: Arena = lhmem.make_arena(lhmem.KB(16));
-        app.graphics_ctx.current_vertex_group = VertexList{
-            .arena = lhmem.make_arena((1 << 10) * 20),
+        app.graphics_ctx.current_vertex_group = VertexGroup{
             .first = null,
             .last = null,
-            .next = null,
         };
         app.graphics_ctx.window.get_events();
         if (app.graphics_ctx.window.event) |event| {
@@ -152,15 +151,15 @@ pub fn main() !void {
         app.graphics_ctx.window.event.?.t = .E_NONE;
         const glyph = app.font.face.glyph.generate_glyph(&frame_arena, 5);
 
-        var j = 0;
-        for (0..glyph.end_indexes_for_strokes) |i| {
-            var list_ptr: *VertexList = frame_arena.push_array(VertexList, 1);
+        var j: usize = 0;
+        for (0..glyph.end_indexes_for_strokes.len) |i| {
+            var list_ptr: *VertexList = frame_arena.push_item(VertexList);
             list_ptr.arena = lhmem.scratch_block();
             app.graphics_ctx.current_vertex_group.sll_push_back(list_ptr);
 
-            while (j < glyph.end_indexes_for_strokes[i]) {
+            while (j < (glyph.end_indexes_for_strokes[i])) {
                 const p: la.Vec2f = glyph.vertex[j];
-                draw.drawp_vertex(&app.graphics_ctx, .{ .x = p.x / 8, .y = p.y / 8 }, draw.Color.create(0xFFFFFFFF));
+                draw.drawp_vertex(&app.graphics_ctx, list_ptr, .{ .x = p.x / 8, .y = p.y / 8 }, draw.Color.create(0xFFFFFFFF));
                 j += 1;
             }
         }

@@ -16,7 +16,7 @@ pub const LhvkGraphicsCtx = struct {
     vk_app: VkApp,
     vk_appdata: VkAppData,
     current_image: u32,
-    current_vertex_group: v.VertexList,
+    current_vertex_group: v.VertexGroup,
 };
 
 pub const InstanceWrapper = struct {
@@ -502,11 +502,11 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     vk.vkCmdBindPipeline(app.command_buffer, vk.VK_PIPELINE_BIND_POINT_GRAPHICS, app.font_pipeline.pipeline);
 
     var data: ?*anyopaque = undefined;
-    //var scratch = lhmem.make_arena(app.vertex_buffer_size);
+    var scratch = lhmem.make_arena(lhmem.KB(64));
     _ = vk.vkMapMemory(app.device_wrapper.device, app.vertex_buffer_mem, 0, app.vertex_buffer_size, 0, &data);
 
     const data_view: []u8 = @as([*]u8, @ptrCast(data))[0..app.vertex_buffer_size];
-    const vertices = ctx.current_vertex_group.compress(&ctx.current_vertex_group.arena);
+    const vertices: []v.RawVertex = ctx.current_vertex_group.compress(&scratch);
     const vertices_bytes = lhmem.get_bytes(v.RawVertex, vertices.len, vertices.ptr);
     std.mem.copyForwards(u8, data_view, vertices_bytes);
 
@@ -514,7 +514,26 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
 
     const offsets: u64 = 0;
     vk.vkCmdBindVertexBuffers(app.command_buffer, 0, 1, &app.vertex_buffer, &offsets);
-    vk.vkCmdDraw(app.command_buffer, @intCast(vertices.len), 1, 0, 0);
+    const number_of_draws: u32 = @intCast(ctx.current_vertex_group.count());
+
+    // TODO(lucashdez): continue
+    var vertex_info: []vk.VkMultiDrawInfoEXT = scratch.push_array(vk.VkMultiDrawInfoEXT, number_of_draws)[0..number_of_draws];
+    var _inside_vertex_index: u32 = 0;
+    var group_head: ?*v.VertexList = ctx.current_vertex_group.first;
+    for (0..vertex_info.len) |i| {
+        if (group_head) |gl| {
+            vertex_info[i].firstVertex = _inside_vertex_index;
+            vertex_info[i].vertexCount = @intCast(gl.count());
+            _inside_vertex_index += @intCast(gl.count());
+            group_head = gl.next;
+        } else {
+            break;
+        }
+    }
+
+    vk.vkCmdDrawMultiEXT(app.command_buffer, number_of_draws, vertex_info.ptr, 1, 0, @sizeOf(vk.VkMultiDrawInfoEXT));
+
+    //vk.vkCmdDraw(app.command_buffer, @intCast(vertices.len), 1, 0, 0);
 }
 
 pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) !void {

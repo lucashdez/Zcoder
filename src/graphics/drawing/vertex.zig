@@ -40,6 +40,43 @@ pub const VertexGroup = struct {
             list.last = new;
         }
     }
+
+    pub fn count(list: *const VertexGroup) usize {
+        var c: usize = 0;
+        if (list.first) |head| {
+            c = 1;
+            var ptr: *VertexList = head;
+            while (ptr.next) |next| {
+                c += 1;
+                ptr = next;
+                if (ptr.next == null) {
+                    break;
+                }
+            }
+        }
+        return c;
+    }
+
+    pub fn compress(group: *VertexGroup, arena: *lhmem.Arena) []RawVertex {
+        var list: ?*VertexList = group.first;
+        var total_size: usize = 0;
+        const start_ptr: [*]const u8 = arena.mem;
+        while (list) |l| {
+            const n = l.count();
+            total_size += n;
+            const arr = arena.push_array(RawVertex, n)[0..n];
+            var i: usize = 0;
+            var ptr = l.first;
+
+            while (ptr) |aval| {
+                arr[i] = aval.raw;
+                ptr = aval.next;
+                i += 1;
+            }
+            list = l.next;
+        }
+        return @as([*]RawVertex, @constCast(@alignCast(@ptrCast(start_ptr))))[0..total_size];
+    }
 };
 
 pub const VertexList = struct {
