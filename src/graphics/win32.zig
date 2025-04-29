@@ -39,20 +39,36 @@ pub const Window = struct {
                     // TODO: Handle WM_CHAR;
                     _ = raw.PeekMessageW(&window.msg, null, 0, 0, raw.PM_REMOVE);
                     if (window.msg.message == raw.WM_CHAR) {
-                        u.warn("char pressed", .{});
+                        window.event.?.t = .E_KEY;
                     }
                     switch (window.msg.wParam) {
-                        0x61 => {
-                            window.event.?.t = .E_KEY;
+                        0x10 => {
+                            window.event.?.mods |= 0b010;
+                        },
+                        0x61, 0x41  => {
                             window.event.?.key = .A;
                         },
+                        0x62, 0x42 => {
+                            window.event.?.key = .B;
+                        },
+                        0x63, 0x43 => {
+                            window.event.?.key = .C;
+                        },
                         else => {
-                            u.warn("KEY not handled = {}", .{window.msg.wParam});
+                            u.warn("KEY not handled = 0x{x}", .{window.msg.wParam});
                         },
                     }
                 },
                 raw.WM_KEYUP => {
                     _ = raw.PeekMessageW(&window.msg, null, 0, 0, raw.PM_REMOVE);
+                    switch (window.msg.wParam) {
+                        0x10 => {
+                            window.event.?.mods &= 0b101;
+                        },
+                        else => {
+                            u.warn("key unpressed : 0x{x}", .{window.msg.wParam});
+                        }
+                    }
                 },
                 raw.WM_NCLBUTTONDOWN => {
                     switch (window.msg.wParam) {

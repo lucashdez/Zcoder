@@ -114,6 +114,8 @@ const font_directory = struct {
 };
 
 pub const FontFace = struct {
+    arena: Arena,
+    glyphs: [255]?glyf.GeneratedGlyph,
     glyph: glyf.Glyph,
 };
 
@@ -162,11 +164,21 @@ pub fn load_font(name: []const u8) !FontAttributes {
     const cmap_table = cmap.read(off, buff);
     off = font_dir.find_table("head");
     const loca_type = head.loca_type(off, buff);
-    off = font_dir.find_table("loca");
-    const a_index = cmap_table.format.get_glyph_index('A', buff);
-    const a_offset = loca.get_glyph_offset(off, a_index, loca_type, buff);
-    off = font_dir.find_table("glyf");
-    const glyph_table = glyf.read(off + a_offset, buff);
+    const loca_off = font_dir.find_table("loca");
+    const a_index = cmap_table.format.get_glyph_index('E', buff);
+    const a_offset = loca.get_glyph_offset(loca_off, a_index, loca_type, buff);
+    const glyf_off = font_dir.find_table("glyf");
+    const glyph_table = glyf.read(glyf_off + a_offset, buff);
 
-    return FontAttributes{ .arena = arena, .name = name, .face = .{ .glyph = glyph_table }, .tables = font_dir };
+    var face: FontFace = undefined;
+    face.arena = lhmem.make_arena(lhmem.MB(4));
+    face.glyph = glyph_table;
+    for (33..126) |i| {
+        const codepoint_index = cmap_table.format.get_glyph_index(@intCast(i), buff);
+        const codepoint_offset = loca.get_glyph_offset(loca_off, codepoint_index, loca_type, buff);
+        std.log.debug("i: {c}", .{@as(u8, @intCast(i))});
+        face.glyphs[i] = glyf.read(glyf_off + codepoint_offset, buff).generate_glyph(&face.arena, 2);
+    }
+
+    return FontAttributes{ .arena = arena, .name = name, .face = face, .tables = font_dir };
 }

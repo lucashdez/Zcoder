@@ -3,6 +3,7 @@ const std = @import("std");
 const TARGET_OS = @import("builtin").os.tag;
 const zigimg = @import("zigimg");
 const Font = @import("font/font.zig");
+const GeneratedGlyph = @import("font/glyf.zig").GeneratedGlyph;
 const FontAttributes = Font.FontAttributes;
 const lhmem = @import("memory/memory.zig");
 const Arena = lhmem.Arena;
@@ -75,10 +76,24 @@ fn write_char(buf: *Buffer, c: u8) void {
 fn handle_key_input(buf: *Buffer, event: e.Event) void {
     switch (event.key) {
         .A => {
-            if (event.mods & 0b010 == 1) {
+            if (event.mods & 0b010 == 2) {
                 write_char(buf, 'A');
             } else {
                 write_char(buf, 'a');
+            }
+        },
+        .B => {
+            if (event.mods & 0b010 == 2) {
+                write_char(buf, 'B');
+            } else {
+                write_char(buf, 'b');
+            }
+        },
+        .C => {
+            if (event.mods & 0b010 == 2) {
+                write_char(buf, 'C');
+            } else {
+                write_char(buf, 'c');
             }
         },
 
@@ -149,18 +164,27 @@ pub fn main() !void {
             app.graphics_ctx.window.event.?.t = .E_NONE;
         }
         app.graphics_ctx.window.event.?.t = .E_NONE;
-        const glyph = app.font.face.glyph.generate_glyph(&frame_arena, 5);
+        var glyph_: ?GeneratedGlyph = null;
+        if (buffer.buffer.items.len > 0) {
+            const char = buffer.buffer.items[buffer.buffer.items.len - 1];
+            if (char > 64 and char < 126) {
+                glyph_ = app.font.face.glyphs[buffer.buffer.items[buffer.buffer.items.len - 1]];
+            }
+        }
 
-        var j: usize = 0;
-        for (0..glyph.end_indexes_for_strokes.len) |i| {
-            var list_ptr: *VertexList = frame_arena.push_item(VertexList);
-            list_ptr.arena = lhmem.scratch_block();
-            app.graphics_ctx.current_vertex_group.sll_push_back(list_ptr);
 
-            while (j < (glyph.end_indexes_for_strokes[i])) {
-                const p: la.Vec2f = glyph.vertex[j];
-                draw.drawp_vertex(&app.graphics_ctx, list_ptr, .{ .x = p.x / 8, .y = p.y / 8 }, draw.Color.create(0xFFFFFFFF));
-                j += 1;
+        if (glyph_) |glyph| {
+            var j: usize = 0;
+            for (0..glyph.end_indexes_for_strokes.len) |i| {
+                var list_ptr: *VertexList = frame_arena.push_item(VertexList);
+                list_ptr.arena = lhmem.scratch_block();
+                app.graphics_ctx.current_vertex_group.sll_push_back(list_ptr);
+
+                while (j < (glyph.end_indexes_for_strokes[i])) {
+                    const p: la.Vec2f = glyph.vertex[j];
+                    draw.drawp_vertex(&app.graphics_ctx, list_ptr, .{ .x = p.x / 8, .y = p.y / 8 }, draw.Color.create(0xFFFFFFFF));
+                    j += 1;
+                }
             }
         }
 

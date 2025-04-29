@@ -517,6 +517,7 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     const number_of_draws: u32 = @intCast(ctx.current_vertex_group.count());
 
     // TODO(lucashdez): continue
+    // CHANGE TO SOMETHING IN VERTEX
     var vertex_info: []vk.VkMultiDrawInfoEXT = scratch.push_array(vk.VkMultiDrawInfoEXT, number_of_draws)[0..number_of_draws];
     var _inside_vertex_index: u32 = 0;
     var group_head: ?*v.VertexList = ctx.current_vertex_group.first;
@@ -531,9 +532,11 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
         }
     }
 
-    vk.vkCmdDrawMultiEXT(app.command_buffer, number_of_draws, vertex_info.ptr, 1, 0, @sizeOf(vk.VkMultiDrawInfoEXT));
+    for (0..number_of_draws) |i| {
+        vk.vkCmdDraw(app.command_buffer, vertex_info[i].vertexCount, 1, vertex_info[i].firstVertex, 0);
+    }
 
-    //vk.vkCmdDraw(app.command_buffer, @intCast(vertices.len), 1, 0, 0);
+
 }
 
 pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) !void {

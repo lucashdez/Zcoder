@@ -44,7 +44,7 @@ pub const Glyph = struct {
     x_coords: []i16,
     y_coords: []i16,
 
-    pub fn generate_glyph(self: *Glyph, arena: *Arena, subdivision: u32) GeneratedGlyph {
+    pub fn generate_glyph(self: *const Glyph, arena: *Arena, subdivision: u32) GeneratedGlyph {
         const count_off_curve: u32 = blk: {
             var count: u32 = 0;
             for (0..self.flags.len) |i| {
@@ -52,8 +52,8 @@ pub const Glyph = struct {
             }
             break :blk count;
         };
-        const memrev = self.x_coords.len + count_off_curve * (subdivision);
-        var res: []Vec2f = arena.push_array(Vec2f, memrev)[0..memrev];
+        const memrev = self.x_coords.len + count_off_curve * (subdivision) * self.number_of_contours;
+        var res: []Vec2f = arena.push_array(Vec2f, memrev + 1)[0..memrev + 1];
         var end_indexes: []usize = arena.push_array(usize, self.number_of_contours)[0..self.number_of_contours];
         var j: usize = 0;
         var res_index: usize = 0;
@@ -76,6 +76,7 @@ pub const Glyph = struct {
                     res[res_index].x = x;
                     res[res_index].y = y;
                     res_index += 1;
+                    continue;
                 } else {
                     if (contour_start) {
                         contour_started = true;
@@ -99,17 +100,21 @@ pub const Glyph = struct {
                         p2.x = p1.x + (p2.x - p1.x) / 2.0;
                         p2.y = p1.y + (p2.y - p1.y) / 2.0;
                     } else {
-                        j += 1;
+                    // TODO?
                     }
                     tesselate_bezier(&res, res_index, subdivision, p0, p1, p2);
                     res_index += subdivision;
                     contour_start = false;
                 }
             }
-
-            if (self.flags[j - 1].on_curve) {
-                res[res_index] = res[generated_points_start_index];
-                res_index += 1;
+            if (res_index < res.len) {
+                if (self.flags[j - 1].on_curve) {
+                    res[res_index] = res[generated_points_start_index];
+                    res_index += 1;
+                } else {
+                    res[res_index] = res[generated_points_start_index];
+                    res_index += 1;
+                }
             }
             if (contour_started) {
                 const p0: Vec2f = res[res_index - 1];
@@ -145,13 +150,13 @@ fn tesselate_bezier(out: *[]Vec2f, idx: usize, subdivision: u32, p0: Vec2f, p1: 
 pub fn read(offset: usize, buf: []const u8) Glyph {
     var pos: usize = offset;
     var glyph: Glyph = undefined;
-    glyph.arena = lhmem.make_arena(lhmem.KB(32));
+    glyph.arena = lhmem.make_arena(lhmem.KB(64));
     glyph.number_of_contours = fu.read_u16m(&pos, buf);
     glyph.xMin = fu.read_i16m(&pos, buf);
     glyph.yMin = fu.read_i16m(&pos, buf);
     glyph.xMax = fu.read_i16m(&pos, buf);
     glyph.yMax = fu.read_i16m(&pos, buf);
-    glyph.end_pts_of_contours = glyph.arena.push_array(u16, glyph.number_of_contours * 2)[0..glyph.number_of_contours];
+    glyph.end_pts_of_contours = glyph.arena.push_array(u16, @as(u32, @intCast(glyph.number_of_contours)) * 2)[0..glyph.number_of_contours];
     for (0..glyph.end_pts_of_contours.len) |i| {
         glyph.end_pts_of_contours[i] = fu.read_u16m(&pos, buf);
     }
