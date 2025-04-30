@@ -115,7 +115,7 @@ const font_directory = struct {
 
 pub const FontFace = struct {
     arena: Arena,
-    glyphs: [255]?glyf.GeneratedGlyph,
+    glyphs: [256]?glyf.GeneratedGlyph,
     glyph: glyf.Glyph,
 };
 
@@ -127,7 +127,7 @@ pub const FontAttributes = struct {
 };
 
 pub fn load_font(name: []const u8) !FontAttributes {
-    const arena = lhmem.make_arena(lhmem.MB(1));
+    var arena = lhmem.make_arena(lhmem.MB(1));
     var scratch = lhmem.make_arena(lhmem.MB(30));
     const allocator = std.heap.page_allocator;
     var path: []const u8 = undefined;
@@ -145,13 +145,13 @@ pub fn load_font(name: []const u8) !FontAttributes {
     defer file.close();
     const metadata = try file.metadata();
     const size = metadata.size();
-    const buff: []u8 = scratch.push_array(u8, size)[0..size];
+    const buff: []u8 = scratch.push_array(u8, scratch.cap - 1)[0..scratch.cap - 1];
     const size_read = try file.readAll(buff);
     assert(size_read == size);
     var pos: usize = 0;
     var font_dir: font_directory = undefined;
     font_dir.off_sub = offset_subtable.read(&pos, buff);
-    var tables = scratch.push_array(table_directory, font_dir.off_sub.num_tables);
+    var tables = arena.push_array(table_directory, font_dir.off_sub.num_tables);
 
     for (0..font_dir.off_sub.num_tables) |i| {
         tables[i] = table_directory.read(&pos, buff);
@@ -171,13 +171,16 @@ pub fn load_font(name: []const u8) !FontAttributes {
     const glyph_table = glyf.read(glyf_off + a_offset, buff);
 
     var face: FontFace = undefined;
-    face.arena = lhmem.make_arena(lhmem.MB(4));
+    face.arena = lhmem.make_arena(lhmem.MB(80));
     face.glyph = glyph_table;
-    for (33..126) |i| {
+    for (0..256) |i| {
         const codepoint_index = cmap_table.format.get_glyph_index(@intCast(i), buff);
+        if (codepoint_index == 0) {
+            continue;
+        }
         const codepoint_offset = loca.get_glyph_offset(loca_off, codepoint_index, loca_type, buff);
-        std.log.debug("i: {c}", .{@as(u8, @intCast(i))});
-        face.glyphs[i] = glyf.read(glyf_off + codepoint_offset, buff).generate_glyph(&face.arena, 2);
+        std.log.debug("i: {c}\n", .{@as(u8, @intCast(i))});
+        face.glyphs[i] = glyf.read(glyf_off + codepoint_offset, buff).generate_glyph(&face.arena, 3);
     }
 
     return FontAttributes{ .arena = arena, .name = name, .face = face, .tables = font_dir };

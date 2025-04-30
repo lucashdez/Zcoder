@@ -74,31 +74,7 @@ fn write_char(buf: *Buffer, c: u8) void {
 }
 
 fn handle_key_input(buf: *Buffer, event: e.Event) void {
-    switch (event.key) {
-        .A => {
-            if (event.mods & 0b010 == 2) {
-                write_char(buf, 'A');
-            } else {
-                write_char(buf, 'a');
-            }
-        },
-        .B => {
-            if (event.mods & 0b010 == 2) {
-                write_char(buf, 'B');
-            } else {
-                write_char(buf, 'b');
-            }
-        },
-        .C => {
-            if (event.mods & 0b010 == 2) {
-                write_char(buf, 'C');
-            } else {
-                write_char(buf, 'c');
-            }
-        },
-
-        else => {},
-    }
+    write_char(buf, @as(u8, @intCast(event.char)));
     print("{s}\n", .{buf.buffer.items});
 }
 
@@ -166,10 +142,7 @@ pub fn main() !void {
         app.graphics_ctx.window.event.?.t = .E_NONE;
         var glyph_: ?GeneratedGlyph = null;
         if (buffer.buffer.items.len > 0) {
-            const char = buffer.buffer.items[buffer.buffer.items.len - 1];
-            if (char > 64 and char < 126) {
-                glyph_ = app.font.face.glyphs[buffer.buffer.items[buffer.buffer.items.len - 1]];
-            }
+            glyph_ = app.font.face.glyphs[buffer.buffer.items[buffer.buffer.items.len - 1]];
         }
 
 

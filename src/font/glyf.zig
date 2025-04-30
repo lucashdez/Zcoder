@@ -45,6 +45,7 @@ pub const Glyph = struct {
     y_coords: []i16,
 
     pub fn generate_glyph(self: *const Glyph, arena: *Arena, subdivision: u32) GeneratedGlyph {
+    // NOTE(lucashdez) SEE THE DIFFS WITH PREVIOUS THING BECAUSE WE DONT SUPPORT COMPOUND YETT
         const count_off_curve: u32 = blk: {
             var count: u32 = 0;
             for (0..self.flags.len) |i| {
@@ -63,7 +64,7 @@ pub const Glyph = struct {
             const generated_points_start_index: usize = res_index;
             var contour_start: bool = true;
             var contour_started: bool = false;
-            while (j <= self.end_pts_of_contours[i]) {
+            while (j <= self.end_pts_of_contours[i] and j < self.x_coords.len) {
                 defer j += 1;
                 var x: f32 = @floatFromInt(self.x_coords[j]);
                 var y: f32 = @floatFromInt(self.y_coords[j]);
@@ -72,12 +73,12 @@ pub const Glyph = struct {
                 //const cur_index = j;
                 const next_index = (j + 1 - contour_start_index) % contour_len + contour_start_index;
 
-                if (self.flags[j].on_curve) {
+                if (res_index < res.len and self.flags[j].on_curve) {
                     res[res_index].x = x;
                     res[res_index].y = y;
                     res_index += 1;
                     continue;
-                } else {
+                } else if (res_index < res.len and next_index < self.flags.len) {
                     if (contour_start) {
                         contour_started = true;
                         if (self.flags[next_index].on_curve) {
@@ -105,6 +106,9 @@ pub const Glyph = struct {
                     tesselate_bezier(&res, res_index, subdivision, p0, p1, p2);
                     res_index += subdivision;
                     contour_start = false;
+                } else {
+                    std.log.warn("[WARN] something happens with the next_index", .{});
+
                 }
             }
             if (res_index < res.len) {
@@ -116,7 +120,7 @@ pub const Glyph = struct {
                     res_index += 1;
                 }
             }
-            if (contour_started) {
+            if (res_index < res.len and contour_started) {
                 const p0: Vec2f = res[res_index - 1];
                 const p1: Vec2f = .{ .x = @floatFromInt(self.x_coords[contour_start_index]), .y = @floatFromInt(self.y_coords[contour_start_index]) };
                 const p2: Vec2f = res[generated_points_start_index];
@@ -150,7 +154,7 @@ fn tesselate_bezier(out: *[]Vec2f, idx: usize, subdivision: u32, p0: Vec2f, p1: 
 pub fn read(offset: usize, buf: []const u8) Glyph {
     var pos: usize = offset;
     var glyph: Glyph = undefined;
-    glyph.arena = lhmem.make_arena(lhmem.KB(64));
+    glyph.arena = lhmem.make_arena(lhmem.MB(2));
     glyph.number_of_contours = fu.read_u16m(&pos, buf);
     glyph.xMin = fu.read_i16m(&pos, buf);
     glyph.yMin = fu.read_i16m(&pos, buf);
@@ -216,12 +220,10 @@ pub fn read(offset: usize, buf: []const u8) Glyph {
         prev_y_coord = glyph.y_coords[i];
     }
 
-    std.debug.print("(#{s:3})  {s:5} {s:5}\n", .{ "#", "x", "y" });
-    for (0..glyph.x_coords.len) |i| {
-        std.debug.print("{d:4}#)  {d:5} {d:5}\n", .{ i, glyph.x_coords[i], glyph.y_coords[i] });
-    }
+    //std.debug.print("(#{s:3})  {s:5} {s:5}\n", .{ "#", "x", "y" });
+    //for (0..glyph.x_coords.len) |i| {
+    //    std.debug.print("{d:4}#)  {d:5} {d:5}\n", .{ i, glyph.x_coords[i], glyph.y_coords[i] });
+    //}
 
     return glyph;
 }
-
-//OEF0QkKuGkqXafiGQ_P0Lg

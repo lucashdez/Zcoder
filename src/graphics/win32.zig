@@ -40,6 +40,7 @@ pub const Window = struct {
                     _ = raw.PeekMessageW(&window.msg, null, 0, 0, raw.PM_REMOVE);
                     if (window.msg.message == raw.WM_CHAR) {
                         window.event.?.t = .E_KEY;
+                        window.event.?.char = @intCast(window.msg.wParam);
                     }
                     switch (window.msg.wParam) {
                         0x10 => {

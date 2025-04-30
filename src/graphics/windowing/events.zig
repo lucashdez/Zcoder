@@ -50,6 +50,7 @@ pub const Event = struct {
     t: EventType,
     params: u32,
     key: KEY_PRESSED,
+    char: u32,
     // 0b000 <- none
     // 0b001 <- CTRL
     // 0b010 <- SHIFT
