@@ -74,6 +74,7 @@ fn write_char(buf: *Buffer, c: u8) void {
 }
 
 fn handle_key_input(buf: *Buffer, event: e.Event) void {
+    print("CHAR PRESSED: 0x{x}\n", .{event.char});
     write_char(buf, @as(u8, @intCast(event.char)));
     print("{s}\n", .{buf.buffer.items});
 }
@@ -113,8 +114,8 @@ pub fn main() !void {
         }
     }
     var app: Application = undefined;
-    app.graphics_ctx.vk_app.arena = lhmem.make_arena((1 << 10) * 100);
-    app.graphics_ctx.vk_appdata.arena = lhmem.make_arena((1 << 10) * 100);
+    app.graphics_ctx.vk_app.arena = lhmem.make_arena(lhmem.MB(10));
+    app.graphics_ctx.vk_appdata.arena = lhmem.make_arena(lhmem.MB(10));
     const thr = try std.Thread.spawn(.{}, load_font, .{ &app, "Envy Code R.ttf" });
 
     app.graphics_ctx.window = windowing.create_window("algo");
@@ -137,7 +138,6 @@ pub fn main() !void {
                 },
                 else => {},
             }
-            app.graphics_ctx.window.event.?.t = .E_NONE;
         }
         app.graphics_ctx.window.event.?.t = .E_NONE;
         var glyph_: ?GeneratedGlyph = null;
@@ -155,7 +155,7 @@ pub fn main() !void {
 
                 while (j < (glyph.end_indexes_for_strokes[i])) {
                     const p: la.Vec2f = glyph.vertex[j];
-                    draw.drawp_vertex(&app.graphics_ctx, list_ptr, .{ .x = p.x / 8, .y = p.y / 8 }, draw.Color.create(0xFFFFFFFF));
+                    draw.drawp_vertex(&app.graphics_ctx, list_ptr, .{ .x = p.x / 10, .y = p.y / 10 }, draw.Color.create(0xFFFFFFFF));
                     j += 1;
                 }
             }
@@ -166,6 +166,4 @@ pub fn main() !void {
         try lhvk.end_command_buffer_rendering(&app.graphics_ctx);
     }
     thr.join();
-
-    try buffer.save_file();
 }

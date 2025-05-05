@@ -116,7 +116,6 @@ const font_directory = struct {
 pub const FontFace = struct {
     arena: Arena,
     glyphs: [256]?glyf.GeneratedGlyph,
-    glyph: glyf.Glyph,
 };
 
 pub const FontAttributes = struct {
@@ -127,7 +126,8 @@ pub const FontAttributes = struct {
 };
 
 pub fn load_font(name: []const u8) !FontAttributes {
-    var arena = lhmem.make_arena(lhmem.MB(1));
+    // TODO (lucashdez): Refactor the memory man pls (obscure allocations everywhere)
+    var arena = lhmem.make_arena(lhmem.MB(30));
     var scratch = lhmem.make_arena(lhmem.MB(30));
     const allocator = std.heap.page_allocator;
     var path: []const u8 = undefined;
@@ -165,17 +165,14 @@ pub fn load_font(name: []const u8) !FontAttributes {
     off = font_dir.find_table("head");
     const loca_type = head.loca_type(off, buff);
     const loca_off = font_dir.find_table("loca");
-    const a_index = cmap_table.format.get_glyph_index('E', buff);
-    const a_offset = loca.get_glyph_offset(loca_off, a_index, loca_type, buff);
     const glyf_off = font_dir.find_table("glyf");
-    const glyph_table = glyf.read(glyf_off + a_offset, buff);
 
     var face: FontFace = undefined;
     face.arena = lhmem.make_arena(lhmem.MB(80));
-    face.glyph = glyph_table;
     for (0..256) |i| {
         const codepoint_index = cmap_table.format.get_glyph_index(@intCast(i), buff);
         if (codepoint_index == 0) {
+            std.log.warn("Codepoint_index is 0 for {} \n", .{i});
             continue;
         }
         const codepoint_offset = loca.get_glyph_offset(loca_off, codepoint_index, loca_type, buff);

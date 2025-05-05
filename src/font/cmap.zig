@@ -74,7 +74,7 @@ const CmapFormat4 = struct {
         var i_index: isize = -1;
         var index: usize = 0;
         for (0..self.segCountX2 / 2) |i| {
-            if (self.endCode[i] > code_point) {
+            if (self.endCode[i] >= code_point) {
                 i_index = @intCast(i);
                 index = i;
                 break;
@@ -168,7 +168,7 @@ pub fn read(offset: u32, buf: []const u8) cmap {
     assert(format_id == 4);
     const format = read_format_table_f4(unicode_table_offset, buf);
     format.print();
-    std.log.info("A: {d} B: {d}, C: {}, D: {}, E: {}", .{ format.get_glyph_index('A', buf), format.get_glyph_index('B', buf), format.get_glyph_index('C', buf), format.get_glyph_index('D', buf), format.get_glyph_index('E', buf) });
+    std.log.info("A: {d} B: {d}, C: {}, D: {}, E: {}, ~: {}", .{ format.get_glyph_index('A', buf), format.get_glyph_index('B', buf), format.get_glyph_index('C', buf), format.get_glyph_index('D', buf), format.get_glyph_index('E', buf), format.get_glyph_index('~', buf) });
 
     return cmap{ .format = format };
 }

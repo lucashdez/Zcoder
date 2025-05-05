@@ -155,6 +155,7 @@ pub fn read(offset: usize, buf: []const u8) Glyph {
     var pos: usize = offset;
     var glyph: Glyph = undefined;
     glyph.arena = lhmem.make_arena(lhmem.MB(2));
+    // TODO(lucashdez) read compound glyfs
     glyph.number_of_contours = fu.read_u16m(&pos, buf);
     glyph.xMin = fu.read_i16m(&pos, buf);
     glyph.yMin = fu.read_i16m(&pos, buf);
@@ -220,10 +221,10 @@ pub fn read(offset: usize, buf: []const u8) Glyph {
         prev_y_coord = glyph.y_coords[i];
     }
 
-    //std.debug.print("(#{s:3})  {s:5} {s:5}\n", .{ "#", "x", "y" });
-    //for (0..glyph.x_coords.len) |i| {
+    // std.debug.print("(#{s:3})  {s:5} {s:5}\n", .{ "#", "x", "y" });
+    // for (0..glyph.x_coords.len) |i| {
     //    std.debug.print("{d:4}#)  {d:5} {d:5}\n", .{ i, glyph.x_coords[i], glyph.y_coords[i] });
-    //}
+    // }
 
     return glyph;
 }

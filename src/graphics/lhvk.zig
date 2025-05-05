@@ -186,7 +186,7 @@ fn create_instance(app: *VkApp, app_data: ?*VkAppData) VulkanInitError!void {
     var editable: [*][*c]const u8 = app.arena.push_array([*c]const u8, 5);
     editable[0] = vk.VK_EXT_DEBUG_UTILS_EXTENSION_NAME;
     editable[1] = vk.VK_KHR_SURFACE_EXTENSION_NAME;
-    // TODO: xcb extensions
+    // TODO: WAYLAND extensions
     if (TARGET_OS == .windows) {
         editable[2] = vk.VK_KHR_WIN32_SURFACE_EXTENSION_NAME;
     } else {
