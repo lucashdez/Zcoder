@@ -18,7 +18,7 @@ pub const Rectu32 = union {
     },
 };
 
-pub const Vec2f32 = union { pos: struct { x: f32, y: f32 }, v: [2]f32 };
+pub const Vec2f32 = union { xy: struct { x: f32, y: f32 }, v: [2]f32 };
 pub const Rectf32 = union {
     pos: struct {
         x0: f32,

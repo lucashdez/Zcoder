@@ -155,7 +155,7 @@ pub fn main() !void {
 
                 while (j < (glyph.end_indexes_for_strokes[i])) {
                     const p: la.Vec2f = glyph.vertex[j];
-                    draw.drawp_vertex(&app.graphics_ctx, list_ptr, .{ .x = p.x / 10, .y = p.y / 10 }, draw.Color.create(0xFFFFFFFF));
+                    draw.drawp_vertex(&app.graphics_ctx, list_ptr, .{ .xy = .{ .x = p.x / 10, .y = p.y / 10} }, draw.Color.create(0xFFFFFFFF));
                     j += 1;
                 }
             }

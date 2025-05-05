@@ -10,7 +10,8 @@ const Arena = lhmem.Arena;
 const la = @import("../lin_alg/la.zig");
 const Vec2f = la.Vec2f;
 
-const GlyphFlags = packed struct {
+const GlyphFlags = packed struct
+{
     on_curve: bool,
 
     x_short: bool,
@@ -25,7 +26,8 @@ const GlyphFlags = packed struct {
     reserved2: bool,
 };
 
-pub const GeneratedGlyph = struct {
+pub const GeneratedGlyph = struct
+{
     vertex: []Vec2f,
     end_indexes_for_strokes: []usize,
 };
@@ -173,11 +175,14 @@ pub fn read(offset: usize, buf: []const u8) Glyph {
 
     { // NOTE(lucashdez) we need for loop ?
         var i: usize = 0;
-        while (i < glyph.flags.len) {
+        while (i < glyph.flags.len)
+        {
             glyph.flags[i] = std.mem.bytesToValue(GlyphFlags, &fu.read_u8m(&pos, buf));
-            if (glyph.flags[i].repeat) {
+            if (glyph.flags[i].repeat)
+            {
                 var repeat_count: u8 = fu.read_u8m(&pos, buf);
-                while (repeat_count > 0) {
+                while (repeat_count > 0)
+                {
                     i += 1;
                     glyph.flags[i] = glyph.flags[i - 1];
                     repeat_count -= 1;
