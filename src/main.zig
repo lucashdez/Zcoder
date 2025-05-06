@@ -13,6 +13,7 @@ const e = @import("graphics/windowing/events.zig");
 const la = @import("lin_alg/la.zig");
 const print = std.debug.print;
 const draw = @import("graphics/drawing/primitives.zig");
+const text = @import("graphics/drawing/text.zig");
 const v = @import("graphics/drawing/vertex.zig");
 const VertexList = v.VertexList;
 const VertexGroup = v.VertexGroup;
@@ -21,7 +22,7 @@ const Rectu32 = base.Rectu32;
 
 extern fn putenv(string: [*:0]const u8) c_int;
 
-const Application = struct {
+pub const Application = struct {
     graphics_ctx: lhvk.LhvkGraphicsCtx,
     font: FontAttributes,
 };
@@ -79,28 +80,6 @@ fn handle_key_input(buf: *Buffer, event: e.Event) void {
     print("{s}\n", .{buf.buffer.items});
 }
 
-pub fn line_length(text: *const std.ArrayList(u8), line: usize) usize {
-    var len: usize = 0;
-    if (line == 0) {
-        while (len < text.items.len and text.items[len] != '\n') {
-            len += 1;
-        }
-    } else {
-        var walker: usize = 0;
-        var found_b_n: u32 = 0;
-        while (true) {
-            if (text.items[walker] == '\n') found_b_n += 1;
-            walker += 1;
-            if (found_b_n == line) break;
-        }
-        while (walker < text.items.len and text.items[walker] != '\n') {
-            len += 1;
-            walker += 1;
-        }
-    }
-    return len;
-}
-
 fn load_font(app: *Application, name: []const u8) !void {
     app.font = try Font.load_font(name);
 }
@@ -140,39 +119,8 @@ pub fn main() !void {
             }
         }
         app.graphics_ctx.window.event.?.t = .E_NONE;
-        var glyph_: ?GeneratedGlyph = null;
-        if (buffer.buffer.items.len > 0) {
-            glyph_ = app.font.face.glyphs[buffer.buffer.items[buffer.buffer.items.len - 1]];
-        }
 
-        if (glyph_) |glyph| {
-            var j: usize = 0;
-            var vl: *VertexList = frame_arena.push_item(VertexList);
-            vl.arena = lhmem.scratch_block();
-            app.graphics_ctx.current_vertex_group.sll_push_back(vl);
-            const x = glyph.bounding_box.size.pos.xy.x / 10;
-            const y = glyph.bounding_box.size.pos.xy.y / 10;
-            const width = glyph.bounding_box.size.width / 10;
-            const height = glyph.bounding_box.size.height / 10;
-            const red = draw.Color.create(0xFF0000FF);
-            draw.drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = x, .y = y } }, red);
-            draw.drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = x + width, .y = y } }, red);
-            draw.drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = x + width, .y = y - height } }, red);
-            draw.drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = x, .y = y - height } }, red);
-            draw.drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = x, .y = y } }, red);
-            for (0..glyph.end_indexes_for_strokes.len) |i| {
-                var list_ptr: *VertexList = frame_arena.push_item(VertexList);
-                list_ptr.arena = lhmem.scratch_block();
-                app.graphics_ctx.current_vertex_group.sll_push_back(list_ptr);
-
-                while (j < (glyph.end_indexes_for_strokes[i])) {
-                    const p: la.Vec2f = glyph.vertex[j];
-                    draw.drawp_vertex(&app.graphics_ctx, list_ptr, .{ .xy = .{ .x = p.x / 10, .y = p.y / 10 } }, draw.Color.create(0xFFFFFFFF));
-                    j += 1;
-                }
-            }
-        }
-
+        text.draw_string(&app, &frame_arena, buffer.buffer.items, draw.Color.create(0xFFFFFFFF));
         if (try lhvk.prepare_frame(&app.graphics_ctx)) continue;
         lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
         try lhvk.end_command_buffer_rendering(&app.graphics_ctx);
