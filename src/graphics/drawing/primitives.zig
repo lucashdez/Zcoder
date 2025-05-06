@@ -1,3 +1,5 @@
+const std = @import("std");
+
 // Vulkan
 const lhvk = @import("../lhvk.zig");
 const LhvkGraphicsCtx = lhvk.LhvkGraphicsCtx;
@@ -61,18 +63,34 @@ pub fn drawp_rectangle(ctx: *LhvkGraphicsCtx, r: Rectf32, color: Color) void {
     ctx.current_vertex_group.sll_push_back(bottom_right);
 }
 
-pub fn drawp_vertex(ctx:*LhvkGraphicsCtx, list: *VertexList, pos: base.Vec2f32, color: Color) void {
+pub fn drawp_rectangle_outline(ctx: *LhvkGraphicsCtx, list: *VertexList, r: Rectf32, color: Color) void {
+    const winrect: Rectu32 = ctx.window.get_size();
+    const top_left = Vertex.init(&list.arena, la.vec2f(la.normalize(f32, r.v_pos.p0.xy.x, @floatFromInt(winrect.size.width)), la.normalize(f32, r.v_pos.p0.xy.y, @floatFromInt(winrect.size.height))), color);
+
+    const top_right = Vertex.init(&list.arena, la.vec2f(la.normalize(f32, r.v_pos.p1.xy.x, @floatFromInt(winrect.size.width)), la.normalize(f32, r.v_pos.p0.xy.y, @floatFromInt(winrect.size.height))), color);
+
+    const bottom_left = Vertex.init(&list.arena, la.vec2f(la.normalize(f32, r.v_pos.p0.xy.x, @floatFromInt(winrect.size.width)), la.normalize(f32, r.v_pos.p1.xy.y, @floatFromInt(winrect.size.height))), color);
+
+    const bottom_right = Vertex.init(&list.arena, la.vec2f(la.normalize(f32, r.v_pos.p1.xy.x, @floatFromInt(winrect.size.width)), la.normalize(f32, r.v_pos.p1.xy.y, @floatFromInt(winrect.size.height))), color);
+
+    std.log.info("{} {} {} {}", .{ top_left, top_right, bottom_right, bottom_left });
+    list.sll_push_back(top_left);
+    list.sll_push_back(top_right);
+    list.sll_push_back(bottom_right);
+    list.sll_push_back(bottom_left);
+    list.sll_push_back(top_left);
+}
+
+pub fn drawp_vertex(ctx: *LhvkGraphicsCtx, list: *VertexList, pos: base.Vec2f32, color: Color) void {
     const winrect: Rectu32 = ctx.window.get_size();
     if (TARGET_OS == .windows) {
         const offset = ctx.window.get_size();
         const topdownsize: u32 = offset.size.height;
         // FIXME(lucashdez): THIS CANNOT BE LIKE THIS
-        const v = Vertex.init(&list.arena,
-                              la.vec2f(la.normalize(f32, pos.xy.x, @floatFromInt(winrect.size.width)),
-                                       la.normalize(f32, (@as(f32, @floatFromInt(topdownsize)) - pos.xy.y), @floatFromInt(winrect.size.height))), color);
+        const v = Vertex.init(&list.arena, la.vec2f(la.normalize(f32, pos.xy.x, @floatFromInt(winrect.size.width)), la.normalize(f32, (@as(f32, @floatFromInt(topdownsize)) - pos.xy.y), @floatFromInt(winrect.size.height))), color);
         list.sll_push_back(v);
     } else {
         const v = Vertex.init(&ctx.current_vertex_group.arena, la.vec2f(la.normalize(f32, pos.xy.x, @floatFromInt(winrect.size.width)), la.normalize(f32, pos.xy.y, @floatFromInt(winrect.size.height))), color);
-        ctx.current_vertex_group.sll_push_back(v);
+        list.sll_push_back(v);
     }
 }

@@ -4,14 +4,87 @@ const assert = std.debug.assert;
 
 // FONT UTILS
 const fu = @import("font.zig").fu;
+const FontDirectory = @import("font.zig").FontDirectory;
 
 // MEMORY
 const lhmem = @import("../memory/memory.zig");
 const Arena = lhmem.Arena;
 
 // BEGIN
-const cmap = struct {
+pub const cmap = struct {
     format: CmapFormat4,
+    pub fn init(ft: FontDirectory, buf: []u8) cmap {
+        const offset = ft.find_table("cmap");
+        var scratch = lhmem.scratch_block();
+        var pos: usize = @intCast(offset);
+        const cmap_index = CmapIndex{ .version = fu.read_u16m(&pos, buf), .numberSubtables = fu.read_u16m(&pos, buf) };
+
+        const cmap_subtables_arr = scratch.push_array(CmapSubtable, cmap_index.numberSubtables)[0..cmap_index.numberSubtables];
+
+        var unicode_table_offset: u32 = undefined;
+        std.debug.print("{s:3}{s:15}{s:10}{s:10}\n", .{ "id", "platform", "specific", "offset" });
+        for (0..cmap_index.numberSubtables) |i| {
+            cmap_subtables_arr[i] = .{
+                .platformId = fu.read_u16m(&pos, buf),
+                .platformSpecificId = fu.read_u16m(&pos, buf),
+                .offset = fu.read_u32m(&pos, buf),
+            };
+            cmap_subtables_arr[i].print();
+            if (cmap_subtables_arr[i].platformId == 0) {
+                unicode_table_offset = cmap_subtables_arr[i].offset + offset;
+            }
+        }
+
+        const format_id = fu.read_u16(unicode_table_offset, buf);
+        // TODO(lucashdez): right now we only support format 4
+        assert(format_id == 4);
+        const format = read_format_table_f4(unicode_table_offset, buf);
+        format.print();
+        //std.log.info("A: {d} B: {d}, C: {}, D: {}, E: {}, ~: {}", .{ format.get_glyph_index('A', buf), format.get_glyph_index('B', buf), format.get_glyph_index('C', buf), format.get_glyph_index('D', buf), format.get_glyph_index('E', buf), format.get_glyph_index('~', buf) });
+
+        return cmap{ .format = format };
+    }
+
+    fn read_format_table_f4(offset: u32, buf: []const u8) CmapFormat4 {
+        var table: CmapFormat4 = undefined;
+        table.arena = lhmem.scratch_block();
+        table.offset = offset;
+        var pos: usize = @intCast(offset);
+        table.format = fu.read_u16m(&pos, buf);
+        table.length = fu.read_u16m(&pos, buf);
+        table.language = fu.read_u16m(&pos, buf);
+        table.segCountX2 = fu.read_u16m(&pos, buf);
+        table.searchRange = fu.read_u16m(&pos, buf);
+        table.entrySelector = fu.read_u16m(&pos, buf);
+        table.rangeShift = fu.read_u16m(&pos, buf);
+        const mem_reserve = table.segCountX2 / 2;
+        table.endCode = table.arena.push_array(u16, mem_reserve)[0..mem_reserve];
+        table.startCode = table.arena.push_array(u16, mem_reserve)[0..mem_reserve];
+        table.idDelta = table.arena.push_array(u16, mem_reserve)[0..mem_reserve];
+        table.idRangeOffset = table.arena.push_array(u16, mem_reserve)[0..mem_reserve];
+
+        const end_pos_start: usize = pos;
+        const start_code_start: usize = pos + table.segCountX2 + 2;
+        const id_delta_start: usize = pos + table.segCountX2 * 2 + 2;
+        const id_range_offset_start: usize = pos + table.segCountX2 * 3 + 2;
+
+        for (0..mem_reserve) |i| {
+            table.endCode[i] = fu.read_u16(end_pos_start + i * 2, buf);
+            table.startCode[i] = fu.read_u16(start_code_start + i * 2, buf);
+            table.idDelta[i] = fu.read_u16(id_delta_start + i * 2, buf);
+            table.idRangeOffset[i] = fu.read_u16(id_range_offset_start + i * 2, buf);
+        }
+
+        var glyph_id_array_start: usize = pos + table.segCountX2 * 4 + 2;
+        const remaining_bytes = table.length - (glyph_id_array_start - offset);
+        const glyph_id_count = remaining_bytes / 2;
+        table.glyphIdArray = table.arena.push_array(u16, glyph_id_count)[0..glyph_id_count];
+        for (0..remaining_bytes / 2) |i| {
+            table.glyphIdArray[i] = fu.read_u16m(&glyph_id_array_start, buf);
+        }
+
+        return table;
+    }
 };
 
 const CmapIndex = struct {
@@ -100,75 +173,3 @@ const CmapFormat4 = struct {
         return 0;
     }
 };
-
-fn read_format_table_f4(offset: u32, buf: []const u8) CmapFormat4 {
-    var table: CmapFormat4 = undefined;
-    table.arena = lhmem.scratch_block();
-    table.offset = offset;
-    var pos: usize = @intCast(offset);
-    table.format = fu.read_u16m(&pos, buf);
-    table.length = fu.read_u16m(&pos, buf);
-    table.language = fu.read_u16m(&pos, buf);
-    table.segCountX2 = fu.read_u16m(&pos, buf);
-    table.searchRange = fu.read_u16m(&pos, buf);
-    table.entrySelector = fu.read_u16m(&pos, buf);
-    table.rangeShift = fu.read_u16m(&pos, buf);
-    const mem_reserve = table.segCountX2 / 2;
-    table.endCode = table.arena.push_array(u16, mem_reserve)[0..mem_reserve];
-    table.startCode = table.arena.push_array(u16, mem_reserve)[0..mem_reserve];
-    table.idDelta = table.arena.push_array(u16, mem_reserve)[0..mem_reserve];
-    table.idRangeOffset = table.arena.push_array(u16, mem_reserve)[0..mem_reserve];
-
-    const end_pos_start: usize = pos;
-    const start_code_start: usize = pos + table.segCountX2 + 2;
-    const id_delta_start: usize = pos + table.segCountX2 * 2 + 2;
-    const id_range_offset_start: usize = pos + table.segCountX2 * 3 + 2;
-
-    for (0..mem_reserve) |i| {
-        table.endCode[i] = fu.read_u16(end_pos_start + i * 2, buf);
-        table.startCode[i] = fu.read_u16(start_code_start + i * 2, buf);
-        table.idDelta[i] = fu.read_u16(id_delta_start + i * 2, buf);
-        table.idRangeOffset[i] = fu.read_u16(id_range_offset_start + i * 2, buf);
-    }
-
-    var glyph_id_array_start: usize = pos + table.segCountX2 * 4 + 2;
-    const remaining_bytes = table.length - (glyph_id_array_start - offset);
-    const glyph_id_count = remaining_bytes / 2;
-    table.glyphIdArray = table.arena.push_array(u16, glyph_id_count)[0..glyph_id_count];
-    for (0..remaining_bytes / 2) |i| {
-        table.glyphIdArray[i] = fu.read_u16m(&glyph_id_array_start, buf);
-    }
-
-    return table;
-}
-
-pub fn read(offset: u32, buf: []const u8) cmap {
-    var scratch = lhmem.scratch_block();
-    var pos: usize = @intCast(offset);
-    const cmap_index = CmapIndex{ .version = fu.read_u16m(&pos, buf), .numberSubtables = fu.read_u16m(&pos, buf) };
-
-    const cmap_subtables_arr = scratch.push_array(CmapSubtable, cmap_index.numberSubtables)[0..cmap_index.numberSubtables];
-
-    var unicode_table_offset: u32 = undefined;
-    std.debug.print("{s:3}{s:15}{s:10}{s:10}\n", .{ "id", "platform", "specific", "offset" });
-    for (0..cmap_index.numberSubtables) |i| {
-        cmap_subtables_arr[i] = .{
-            .platformId = fu.read_u16m(&pos, buf),
-            .platformSpecificId = fu.read_u16m(&pos, buf),
-            .offset = fu.read_u32m(&pos, buf),
-        };
-        cmap_subtables_arr[i].print();
-        if (cmap_subtables_arr[i].platformId == 0) {
-            unicode_table_offset = cmap_subtables_arr[i].offset + offset;
-        }
-    }
-
-    const format_id = fu.read_u16(unicode_table_offset, buf);
-    // TODO(lucashdez): right now we only support format 4
-    assert(format_id == 4);
-    const format = read_format_table_f4(unicode_table_offset, buf);
-    format.print();
-    std.log.info("A: {d} B: {d}, C: {}, D: {}, E: {}, ~: {}", .{ format.get_glyph_index('A', buf), format.get_glyph_index('B', buf), format.get_glyph_index('C', buf), format.get_glyph_index('D', buf), format.get_glyph_index('E', buf), format.get_glyph_index('~', buf) });
-
-    return cmap{ .format = format };
-}

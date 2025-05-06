@@ -145,9 +145,21 @@ pub fn main() !void {
             glyph_ = app.font.face.glyphs[buffer.buffer.items[buffer.buffer.items.len - 1]];
         }
 
-
         if (glyph_) |glyph| {
             var j: usize = 0;
+            var vl: *VertexList = frame_arena.push_item(VertexList);
+            vl.arena = lhmem.scratch_block();
+            app.graphics_ctx.current_vertex_group.sll_push_back(vl);
+            const x = glyph.bounding_box.size.pos.xy.x / 10;
+            const y = glyph.bounding_box.size.pos.xy.y / 10;
+            const width = glyph.bounding_box.size.width / 10;
+            const height = glyph.bounding_box.size.height / 10;
+            const red = draw.Color.create(0xFF0000FF);
+            draw.drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = x, .y = y } }, red);
+            draw.drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = x + width, .y = y } }, red);
+            draw.drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = x + width, .y = y - height } }, red);
+            draw.drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = x, .y = y - height } }, red);
+            draw.drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = x, .y = y } }, red);
             for (0..glyph.end_indexes_for_strokes.len) |i| {
                 var list_ptr: *VertexList = frame_arena.push_item(VertexList);
                 list_ptr.arena = lhmem.scratch_block();
@@ -155,7 +167,7 @@ pub fn main() !void {
 
                 while (j < (glyph.end_indexes_for_strokes[i])) {
                     const p: la.Vec2f = glyph.vertex[j];
-                    draw.drawp_vertex(&app.graphics_ctx, list_ptr, .{ .xy = .{ .x = p.x / 10, .y = p.y / 10} }, draw.Color.create(0xFFFFFFFF));
+                    draw.drawp_vertex(&app.graphics_ctx, list_ptr, .{ .xy = .{ .x = p.x / 10, .y = p.y / 10 } }, draw.Color.create(0xFFFFFFFF));
                     j += 1;
                 }
             }

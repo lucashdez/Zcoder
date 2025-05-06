@@ -1,4 +1,7 @@
 const std = @import("std");
+// BASE
+const base = @import("../base/base_types.zig");
+const Rectf32 = base.Rectf32;
 // FONT
 const fu = @import("font.zig").fu;
 
@@ -10,8 +13,7 @@ const Arena = lhmem.Arena;
 const la = @import("../lin_alg/la.zig");
 const Vec2f = la.Vec2f;
 
-const GlyphFlags = packed struct
-{
+const GlyphFlags = packed struct {
     on_curve: bool,
 
     x_short: bool,
@@ -26,10 +28,10 @@ const GlyphFlags = packed struct
     reserved2: bool,
 };
 
-pub const GeneratedGlyph = struct
-{
+pub const GeneratedGlyph = struct {
     vertex: []Vec2f,
     end_indexes_for_strokes: []usize,
+    bounding_box: Rectf32,
 };
 
 pub const Glyph = struct {
@@ -47,7 +49,7 @@ pub const Glyph = struct {
     y_coords: []i16,
 
     pub fn generate_glyph(self: *const Glyph, arena: *Arena, subdivision: u32) GeneratedGlyph {
-    // NOTE(lucashdez) SEE THE DIFFS WITH PREVIOUS THING BECAUSE WE DONT SUPPORT COMPOUND YETT
+        // NOTE(lucashdez) SEE THE DIFFS WITH PREVIOUS THING BECAUSE WE DONT SUPPORT COMPOUND YETT
         const count_off_curve: u32 = blk: {
             var count: u32 = 0;
             for (0..self.flags.len) |i| {
@@ -56,7 +58,7 @@ pub const Glyph = struct {
             break :blk count;
         };
         const memrev = self.x_coords.len + count_off_curve * (subdivision) * self.number_of_contours;
-        var res: []Vec2f = arena.push_array(Vec2f, memrev + 1)[0..memrev + 1];
+        var res: []Vec2f = arena.push_array(Vec2f, memrev + 1)[0 .. memrev + 1];
         var end_indexes: []usize = arena.push_array(usize, self.number_of_contours)[0..self.number_of_contours];
         var j: usize = 0;
         var res_index: usize = 0;
@@ -103,14 +105,13 @@ pub const Glyph = struct {
                         p2.x = p1.x + (p2.x - p1.x) / 2.0;
                         p2.y = p1.y + (p2.y - p1.y) / 2.0;
                     } else {
-                    // TODO?
+                        // TODO?
                     }
                     tesselate_bezier(&res, res_index, subdivision, p0, p1, p2);
                     res_index += subdivision;
                     contour_start = false;
                 } else {
                     std.log.warn("[WARN] something happens with the next_index", .{});
-
                 }
             }
             if (res_index < res.len) {
@@ -135,7 +136,7 @@ pub const Glyph = struct {
             res[res_index] = res[res_index - 1];
             res_index += 1;
         }
-        return GeneratedGlyph{ .vertex = res, .end_indexes_for_strokes = end_indexes };
+        return GeneratedGlyph{ .vertex = res, .end_indexes_for_strokes = end_indexes, .bounding_box = Rectf32{ .size = .{ .pos = .{ .xy = .{ .x = @floatFromInt(self.xMin), .y = @floatFromInt(self.yMax) } }, .width = @floatFromInt(@abs(self.xMax - self.xMin)), .height = @floatFromInt(@abs(self.yMax - self.yMin)) } } };
     }
 };
 
@@ -175,14 +176,11 @@ pub fn read(offset: usize, buf: []const u8) Glyph {
 
     { // NOTE(lucashdez) we need for loop ?
         var i: usize = 0;
-        while (i < glyph.flags.len)
-        {
+        while (i < glyph.flags.len) {
             glyph.flags[i] = std.mem.bytesToValue(GlyphFlags, &fu.read_u8m(&pos, buf));
-            if (glyph.flags[i].repeat)
-            {
+            if (glyph.flags[i].repeat) {
                 var repeat_count: u8 = fu.read_u8m(&pos, buf);
-                while (repeat_count > 0)
-                {
+                while (repeat_count > 0) {
                     i += 1;
                     glyph.flags[i] = glyph.flags[i - 1];
                     repeat_count -= 1;

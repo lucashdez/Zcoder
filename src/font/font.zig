@@ -5,7 +5,7 @@ const Arena = lhmem.Arena;
 const assert = std.debug.assert;
 
 // TABLES
-const cmap = @import("cmap.zig");
+const cmap = @import("cmap.zig").cmap;
 const head = @import("head.zig");
 const loca = @import("loca.zig");
 const glyf = @import("glyf.zig");
@@ -93,17 +93,17 @@ const table_directory = struct {
     }
 };
 
-const font_directory = struct {
+pub const FontDirectory = struct {
     off_sub: offset_subtable,
     tbl_dir: []table_directory,
-    fn print(self: *const font_directory) void {
+    fn print(self: *const FontDirectory) void {
         std.debug.print("{s}\t{s:10}{s:10}{s:10}\n", .{ "#)", "name", "len", "offset" });
         for (0..self.off_sub.num_tables) |i| {
             std.debug.print("{d})\t{s:10}{d:10}{d:10}\n", .{ i, self.tbl_dir[i].tag, self.tbl_dir[i].length, self.tbl_dir[i].offset });
         }
     }
     // Returns offset
-    fn find_table(self: *const font_directory, name: []const u8) u32 {
+    pub fn find_table(self: *const FontDirectory, name: []const u8) u32 {
         for (self.tbl_dir) |table| {
             if (std.mem.eql(u8, table.tag, name)) {
                 return table.offset;
@@ -122,7 +122,7 @@ pub const FontAttributes = struct {
     arena: Arena,
     face: FontFace,
     name: []const u8,
-    tables: font_directory,
+    tables: FontDirectory,
 };
 
 pub fn load_font(name: []const u8) !FontAttributes {
@@ -145,11 +145,11 @@ pub fn load_font(name: []const u8) !FontAttributes {
     defer file.close();
     const metadata = try file.metadata();
     const size = metadata.size();
-    const buff: []u8 = scratch.push_array(u8, scratch.cap - 1)[0..scratch.cap - 1];
+    const buff: []u8 = scratch.push_array(u8, scratch.cap - 1)[0 .. scratch.cap - 1];
     const size_read = try file.readAll(buff);
     assert(size_read == size);
     var pos: usize = 0;
-    var font_dir: font_directory = undefined;
+    var font_dir: FontDirectory = undefined;
     font_dir.off_sub = offset_subtable.read(&pos, buff);
     var tables = arena.push_array(table_directory, font_dir.off_sub.num_tables);
 
@@ -160,8 +160,9 @@ pub fn load_font(name: []const u8) !FontAttributes {
     font_dir.print();
     std.debug.print("\n\n", .{});
 
+    //TODO(lucashdez): Refactor the creation of tables
     var off = font_dir.find_table("cmap");
-    const cmap_table = cmap.read(off, buff);
+    const cmap_table = cmap.init(font_dir, buff);
     off = font_dir.find_table("head");
     const loca_type = head.loca_type(off, buff);
     const loca_off = font_dir.find_table("loca");
@@ -170,6 +171,7 @@ pub fn load_font(name: []const u8) !FontAttributes {
     var face: FontFace = undefined;
     face.arena = lhmem.make_arena(lhmem.MB(80));
     for (0..256) |i| {
+        face.glyphs[i] = null;
         const codepoint_index = cmap_table.format.get_glyph_index(@intCast(i), buff);
         if (codepoint_index == 0) {
             std.log.warn("Codepoint_index is 0 for {} \n", .{i});
