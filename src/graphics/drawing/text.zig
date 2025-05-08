@@ -27,7 +27,11 @@ const Rectu32 = base.Rectu32;
 const Rectf32 = base.Rectf32;
 const TARGET_OS = @import("builtin").target.os.tag;
 
-pub fn draw_string(app: *Application, arena: *Arena, text: []u8, color: Color) void {
+pub fn draw_string(app: *Application, arena: *Arena, text: []const u8, color: Color) void {
+    //const window_rect = app.graphics_ctx.window.get_size();
+    const resolution:f32 = 1920.0 * 1080.0;
+    const scale = (8 * resolution) / (72.0 * app.font.face.unitsPerEm);
+
     // TODO(lucashdez): face metrics
     // TODO(lucashdez): word wrap
     var cursor: [2]f32 = .{ 0, 0 };
@@ -35,25 +39,24 @@ pub fn draw_string(app: *Application, arena: *Arena, text: []u8, color: Color) v
     var last_width: f32 = 0;
     for (0..text.len) |i| {
         if (face.glyphs[text[i]]) |glyph| {
-            draw_glyph(app, arena, glyph, cursor, color);
-            cursor[0] += glyph.bounding_box.size.width / 10;
-            //Temporal patch
-            last_width = glyph.bounding_box.size.width / 10;
+            draw_glyph(app, arena, scale, glyph, cursor, color);
+            cursor[0] += glyph.advance / scale;
+            last_width = glyph.advance / scale;
         } else if (text[i] == ' ') {
             cursor[0] += last_width;
         }
     }
 }
 
-pub fn draw_glyph(app: *Application, arena: *Arena, glyph: GeneratedGlyph, cursor: [2]f32, color: Color) void {
+pub fn draw_glyph(app: *Application, arena: *Arena, scale: f32, glyph: GeneratedGlyph, cursor: [2]f32, color: Color) void {
     var j: usize = 0;
     var vl: *VertexList = arena.push_item(VertexList);
     vl.arena = lhmem.scratch_block();
     app.graphics_ctx.current_vertex_group.sll_push_back(vl);
-    const x = (glyph.bounding_box.size.pos.xy.x / 10) + cursor[0];
-    const y = (glyph.bounding_box.size.pos.xy.y / 10) + cursor[1];
-    const width = glyph.bounding_box.size.width / 10;
-    const height = glyph.bounding_box.size.height / 10;
+    const x = (glyph.bounding_box.size.pos.xy.x / scale) + cursor[0];
+    const y = (glyph.bounding_box.size.pos.xy.y / scale) + cursor[1];
+    const width = glyph.bounding_box.size.width / scale;
+    const height = glyph.bounding_box.size.height / scale;
     const red = Color.create(0xFF0000FF);
     drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = x, .y = y } }, red);
     drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = x + width, .y = y } }, red);
@@ -67,7 +70,7 @@ pub fn draw_glyph(app: *Application, arena: *Arena, glyph: GeneratedGlyph, curso
 
         while (j < (glyph.end_indexes_for_strokes[i])) {
             const p: la.Vec2f = glyph.vertex[j];
-            drawp_vertex(&app.graphics_ctx, list_ptr, .{ .xy = .{ .x = (p.x / 10) + cursor[0], .y = (p.y / 10) + cursor[1] } }, color);
+            drawp_vertex(&app.graphics_ctx, list_ptr, .{ .xy = .{ .x = (p.x / scale) + cursor[0], .y = (p.y / scale) + cursor[1] } }, color);
             j += 1;
         }
     }

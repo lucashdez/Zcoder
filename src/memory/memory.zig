@@ -74,10 +74,10 @@ pub fn get_bytes(comptime T: type, count: usize, data: [*]T) []u8 {
     return @as([*]u8, @ptrCast(data))[0..size];
 }
 
-pub fn KB(comptime size: usize) usize {
+pub fn KB(size: usize) usize {
     return (1 << 10) * size;
 }
 
-pub fn MB(comptime size: usize) usize {
+pub fn MB(size: usize) usize {
     return (1 << 20) * size;
 }

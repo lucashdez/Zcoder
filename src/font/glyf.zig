@@ -32,6 +32,7 @@ pub const GeneratedGlyph = struct {
     vertex: []Vec2f,
     end_indexes_for_strokes: []usize,
     bounding_box: Rectf32,
+    advance: f32,
 };
 
 pub const Glyph = struct {
@@ -136,7 +137,23 @@ pub const Glyph = struct {
             res[res_index] = res[res_index - 1];
             res_index += 1;
         }
-        return GeneratedGlyph{ .vertex = res, .end_indexes_for_strokes = end_indexes, .bounding_box = Rectf32{ .size = .{ .pos = .{ .xy = .{ .x = @floatFromInt(self.xMin), .y = @floatFromInt(self.yMax) } }, .width = @floatFromInt(@abs(self.xMax - self.xMin)), .height = @floatFromInt(@abs(self.yMax - self.yMin)) } } };
+        return GeneratedGlyph
+        {
+            .vertex = res,
+            .end_indexes_for_strokes = end_indexes,
+            .bounding_box = Rectf32 {
+                .size = .{
+                    .pos = .{
+                        .xy = .{
+                            .x = @floatFromInt(self.xMin), .y = @floatFromInt(self.yMax)
+                        }
+                    },
+                    .width = @floatFromInt(@abs(self.xMax - self.xMin)),
+                    .height = @floatFromInt(@abs(self.yMax - self.yMin))
+                }
+            },
+            .advance = 0.0
+        };
     }
 };
 

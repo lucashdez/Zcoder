@@ -166,7 +166,8 @@ const CmapFormat4 = struct {
 
                 return fu.read_u16(pos, buf);
             } else {
-                return code_point + self.idDelta[index];
+                const ret: usize = @as(usize,code_point) + @as(usize, self.idDelta[index]);
+                return ret;
             }
         }
 

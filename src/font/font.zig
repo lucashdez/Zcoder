@@ -5,10 +5,13 @@ const Arena = lhmem.Arena;
 const assert = std.debug.assert;
 
 // TABLES
-const cmap = @import("cmap.zig").cmap;
-const head = @import("head.zig");
-const loca = @import("loca.zig");
-const glyf = @import("glyf.zig");
+const maxpS = @import("maxp.zig").maxp;
+const cmapS = @import("cmap.zig").cmap;
+const headS = @import("head.zig");
+const locaS = @import("loca.zig");
+const glyfS = @import("glyf.zig");
+const hheaS = @import("hhea.zig").hhea;
+const hmtxS = @import("hmtx.zig").hmtx;
 
 pub const fu = struct {
     pub fn read_nu8m(pos: *usize, stream: []const u8, nu8: usize) []const u8 {
@@ -115,7 +118,8 @@ pub const FontDirectory = struct {
 
 pub const FontFace = struct {
     arena: Arena,
-    glyphs: [256]?glyf.GeneratedGlyph,
+    glyphs: []?glyfS.GeneratedGlyph,
+    unitsPerEm: f32,
 };
 
 pub const FontAttributes = struct {
@@ -161,25 +165,33 @@ pub fn load_font(name: []const u8) !FontAttributes {
     std.debug.print("\n\n", .{});
 
     //TODO(lucashdez): Refactor the creation of tables
-    var off = font_dir.find_table("cmap");
-    const cmap_table = cmap.init(font_dir, buff);
+    var off: u32 = 0;
+    const cmap = cmapS.init(font_dir, buff);
+    const maxp = maxpS.init(font_dir, buff);
+    const hhea = hheaS.init(font_dir, buff);
+    var hmtxarena: Arena = lhmem.scratch_block();
+    const hmtx = hmtxS.init(&hmtxarena,font_dir, buff, hhea.numOfLongHorMetrics, maxp.numGlyphs);
+    hhea.print();
     off = font_dir.find_table("head");
-    const loca_type = head.loca_type(off, buff);
+    const loca_type = headS.loca_type(off, buff);
     const loca_off = font_dir.find_table("loca");
     const glyf_off = font_dir.find_table("glyf");
-
+// CM24018899
     var face: FontFace = undefined;
-    face.arena = lhmem.make_arena(lhmem.MB(80));
-    for (0..256) |i| {
+    face.arena = lhmem.make_arena(lhmem.MB(maxp.numGlyphs + 1));
+    face.glyphs = face.arena.push_array(?glyfS.GeneratedGlyph, maxp.numGlyphs + 1)[0..maxp.numGlyphs + 1];
+    face.unitsPerEm =  @floatFromInt(fu.read_u16(font_dir.find_table("head") + 18, buff));
+    for (0..maxp.numGlyphs + 1) |i| {
         face.glyphs[i] = null;
-        const codepoint_index = cmap_table.format.get_glyph_index(@intCast(i), buff);
+        const codepoint_index = cmap.format.get_glyph_index(@intCast(i), buff);
         if (codepoint_index == 0) {
-            std.log.warn("Codepoint_index is 0 for {} \n", .{i});
             continue;
         }
-        const codepoint_offset = loca.get_glyph_offset(loca_off, codepoint_index, loca_type, buff);
-        std.log.debug("i: {c}\n", .{@as(u8, @intCast(i))});
-        face.glyphs[i] = glyf.read(glyf_off + codepoint_offset, buff).generate_glyph(&face.arena, 3);
+        const codepoint_offset = locaS.get_glyph_offset(loca_off, codepoint_index, loca_type, buff);
+        face.glyphs[i] = glyfS.read(glyf_off + codepoint_offset, buff).generate_glyph(&face.arena, 3);
+        if (face.glyphs[i]) |*glyph| {
+            glyph.advance = @floatFromInt(hmtx.advance[i]);
+        }
     }
 
     return FontAttributes{ .arena = arena, .name = name, .face = face, .tables = font_dir };

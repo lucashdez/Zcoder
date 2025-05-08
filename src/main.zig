@@ -119,8 +119,7 @@ pub fn main() !void {
             }
         }
         app.graphics_ctx.window.event.?.t = .E_NONE;
-
-        text.draw_string(&app, &frame_arena, buffer.buffer.items, draw.Color.create(0xFFFFFFFF));
+        text.draw_string(&app, &frame_arena, "Hello world", draw.Color.create(0xFFFFFFFF));
         if (try lhvk.prepare_frame(&app.graphics_ctx)) continue;
         lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
         try lhvk.end_command_buffer_rendering(&app.graphics_ctx);
