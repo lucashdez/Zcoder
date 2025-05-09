@@ -119,6 +119,7 @@ pub const FontDirectory = struct {
 pub const FontFace = struct {
     arena: Arena,
     glyphs: []?glyfS.GeneratedGlyph,
+    beziers: []?[]glyfS.Bezier,
     unitsPerEm: f32,
 };
 
@@ -173,6 +174,7 @@ pub fn load_font(name: []const u8) !FontAttributes {
     const hmtx = hmtxS.init(&hmtxarena,font_dir, buff, hhea.numOfLongHorMetrics, maxp.numGlyphs);
     hhea.print();
     off = font_dir.find_table("head");
+    const maxboxy:f32 = @floatFromInt(fu.read_u16(off + 42, buff));
     const loca_type = headS.loca_type(off, buff);
     const loca_off = font_dir.find_table("loca");
     const glyf_off = font_dir.find_table("glyf");
@@ -180,15 +182,19 @@ pub fn load_font(name: []const u8) !FontAttributes {
     var face: FontFace = undefined;
     face.arena = lhmem.make_arena(lhmem.MB(maxp.numGlyphs + 1));
     face.glyphs = face.arena.push_array(?glyfS.GeneratedGlyph, maxp.numGlyphs + 1)[0..maxp.numGlyphs + 1];
+    face.beziers = face.arena.push_array(?[]glyfS.Bezier, maxp.numGlyphs + 1)[0..maxp.numGlyphs + 1];
     face.unitsPerEm =  @floatFromInt(fu.read_u16(font_dir.find_table("head") + 18, buff));
     for (0..maxp.numGlyphs + 1) |i| {
         face.glyphs[i] = null;
+        face.beziers[i] = null;
         const codepoint_index = cmap.format.get_glyph_index(@intCast(i), buff);
         if (codepoint_index == 0) {
             continue;
         }
         const codepoint_offset = locaS.get_glyph_offset(loca_off, codepoint_index, loca_type, buff);
-        face.glyphs[i] = glyfS.read(glyf_off + codepoint_offset, buff).generate_glyph(&face.arena, 3);
+        const _glyph = glyfS.read(glyf_off + codepoint_offset, buff);
+        face.glyphs[i] = _glyph.generate_glyph(&face.arena, 3, maxboxy);
+        //face.beziers[i] = _glyph.contour;
         if (face.glyphs[i]) |*glyph| {
             glyph.advance = @floatFromInt(hmtx.advance[i]);
         }

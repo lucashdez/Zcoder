@@ -30,7 +30,7 @@ const TARGET_OS = @import("builtin").target.os.tag;
 pub fn draw_string(app: *Application, arena: *Arena, text: []const u8, color: Color) void {
     //const window_rect = app.graphics_ctx.window.get_size();
     const resolution:f32 = 1920.0 * 1080.0;
-    const scale = (8 * resolution) / (72.0 * app.font.face.unitsPerEm);
+    const scale = (1 * resolution) / (72.0 * app.font.face.unitsPerEm);
 
     // TODO(lucashdez): face metrics
     // TODO(lucashdez): word wrap
@@ -63,14 +63,27 @@ pub fn draw_glyph(app: *Application, arena: *Arena, scale: f32, glyph: Generated
     drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = x + width, .y = y - height } }, red);
     drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = x, .y = y - height } }, red);
     drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = x, .y = y } }, red);
+
+    if (cursor[0] == 0 and cursor[1] == 0) {
+        vl = arena.push_item(VertexList);
+        vl.arena = lhmem.scratch_block();
+        app.graphics_ctx.current_vertex_group.sll_push_back(vl);
+        const window_rect = app.graphics_ctx.window.get_size();
+        const wwidth: f32 = @floatFromInt(window_rect.size.width);
+        const wheight: f32 = @floatFromInt(window_rect.size.height);
+        drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = 0, .y = 0 }}, red);
+        drawp_vertex(&app.graphics_ctx, vl, .{ .xy = .{ .x = wwidth, .y = wheight }}, red);
+    }
+
     for (0..glyph.end_indexes_for_strokes.len) |i| {
         var list_ptr: *VertexList = arena.push_item(VertexList);
         list_ptr.arena = lhmem.scratch_block();
         app.graphics_ctx.current_vertex_group.sll_push_back(list_ptr);
+        const yOffset = height + y;
 
         while (j < (glyph.end_indexes_for_strokes[i])) {
             const p: la.Vec2f = glyph.vertex[j];
-            drawp_vertex(&app.graphics_ctx, list_ptr, .{ .xy = .{ .x = (p.x / scale) + cursor[0], .y = (p.y / scale) + cursor[1] } }, color);
+            drawp_vertex(&app.graphics_ctx, list_ptr, .{ .xy = .{ .x = (p.x / scale) + cursor[0], .y = ((p.y + yOffset) / scale) + cursor[1] } }, color);
             j += 1;
         }
     }

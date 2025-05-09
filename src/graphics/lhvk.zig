@@ -502,7 +502,7 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     vk.vkCmdBindPipeline(app.command_buffer, vk.VK_PIPELINE_BIND_POINT_GRAPHICS, app.font_pipeline.pipeline);
 
     var data: ?*anyopaque = undefined;
-    var scratch = lhmem.make_arena(lhmem.KB(64));
+    var scratch = lhmem.make_arena(lhmem.MB(2));
     _ = vk.vkMapMemory(app.device_wrapper.device, app.vertex_buffer_mem, 0, app.vertex_buffer_size, 0, &data);
 
     const data_view: []u8 = @as([*]u8, @ptrCast(data))[0..app.vertex_buffer_size];
@@ -535,8 +535,6 @@ pub fn begin_command_buffer_rendering(ctx: *LhvkGraphicsCtx) void {
     for (0..number_of_draws) |i| {
         vk.vkCmdDraw(app.command_buffer, vertex_info[i].vertexCount, 1, vertex_info[i].firstVertex, 0);
     }
-
-
 }
 
 pub fn end_command_buffer_rendering(ctx: *LhvkGraphicsCtx) !void {

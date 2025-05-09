@@ -105,11 +105,12 @@ pub const Pipeline = struct {
         input_assembly_create_info.topology = p_opt.topology;
         input_assembly_create_info.primitiveRestartEnable = vk.VK_FALSE;
 
+        // TODO: Dynamic Viewport
         var viewport: vk.VkViewport = std.mem.zeroes(vk.VkViewport);
         viewport.x = 0.0;
         viewport.y = 0.0;
-        viewport.width = @as(f32, @floatFromInt(swapchain.extent.width));
-        viewport.height = @as(f32, @floatFromInt(swapchain.extent.height));
+        viewport.width = @as(f32, @floatFromInt(800));
+        viewport.height = @as(f32, @floatFromInt(600));
         viewport.minDepth = 0.0;
         viewport.maxDepth = 1.0;
 

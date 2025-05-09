@@ -53,10 +53,12 @@ pub fn drawp_triangle(ctx: *LhvkGraphicsCtx, pos: struct { [2]f32, [2]f32, [2]f3
 
 pub fn drawp_rectangle(ctx: *LhvkGraphicsCtx, r: Rectf32, color: Color) void {
     const winrect: Rectu32 = ctx.window.get_size();
-    const top_left = Vertex.init(&ctx.current_vertex_group.arena, la.vec2f(la.normalize(f32, r.size.pos.pos.x, @floatFromInt(winrect.size.width)), la.normalize(f32, r.size.pos.pos.y, @floatFromInt(winrect.size.height))), color);
-    const top_right = Vertex.init(&ctx.current_vertex_group.arena, la.vec2f(la.normalize(f32, r.size.pos.pos.x + r.size.width, @floatFromInt(winrect.size.width)), la.normalize(f32, r.size.pos.pos.y, @floatFromInt(winrect.size.height))), color);
-    const bottom_left = Vertex.init(&ctx.current_vertex_group.arena, la.vec2f(la.normalize(f32, r.size.pos.pos.x, @floatFromInt(winrect.size.width)), la.normalize(f32, r.size.pos.pos.y + r.size.height, @floatFromInt(winrect.size.height))), color);
-    const bottom_right = Vertex.init(&ctx.current_vertex_group.arena, la.vec2f(la.normalize(f32, r.size.pos.pos.x + r.size.width, @floatFromInt(winrect.size.width)), la.normalize(f32, r.size.pos.pos.y + r.size.height, @floatFromInt(winrect.size.height))), color);
+    const width: f32 = @floatFromInt(winrect.size.width);
+    const height: f32 = @floatFromInt(winrect.size.height);
+    const top_left = Vertex.init(&ctx.current_vertex_group.arena, la.vec2f(la.normalize(f32, r.size.pos.pos.x, width), la.normalize(f32, r.size.pos.pos.y, height)), color);
+    const top_right = Vertex.init(&ctx.current_vertex_group.arena, la.vec2f(la.normalize(f32, r.size.pos.pos.x + r.size.width, width), la.normalize(f32, r.size.pos.pos.y, height)), color);
+    const bottom_left = Vertex.init(&ctx.current_vertex_group.arena, la.vec2f(la.normalize(f32, r.size.pos.pos.x, width), la.normalize(f32, r.size.pos.pos.y + r.size.height, height)), color);
+    const bottom_right = Vertex.init(&ctx.current_vertex_group.arena, la.vec2f(la.normalize(f32, r.size.pos.pos.x + r.size.width, width), la.normalize(f32, r.size.pos.pos.y + r.size.height, height)), color);
     ctx.current_vertex_group.sll_push_back(top_left);
     ctx.current_vertex_group.sll_push_back(top_right);
     ctx.current_vertex_group.sll_push_back(bottom_left);
@@ -84,10 +86,13 @@ pub fn drawp_rectangle_outline(ctx: *LhvkGraphicsCtx, list: *VertexList, r: Rect
 pub fn drawp_vertex(ctx: *LhvkGraphicsCtx, list: *VertexList, pos: base.Vec2f32, color: Color) void {
     const winrect: Rectu32 = ctx.window.get_size();
     if (TARGET_OS == .windows) {
-        const offset = ctx.window.get_size();
-        const topdownsize: u32 = offset.size.height;
-        // FIXME(lucashdez): THIS CANNOT BE LIKE THIS
-        const v = Vertex.init(&list.arena, la.vec2f(la.normalize(f32, pos.xy.x, @floatFromInt(winrect.size.width)), la.normalize(f32, (@as(f32, @floatFromInt(topdownsize)) - pos.xy.y), @floatFromInt(winrect.size.height))), color);
+        
+        const v = Vertex.init(&list.arena,
+            la.vec2f(
+                la.normalize(f32, pos.xy.x, @floatFromInt(winrect.size.width)),
+
+                la.normalize(f32, pos.xy.y, @floatFromInt(winrect.size.height))
+            ), color);
         list.sll_push_back(v);
     } else {
         const v = Vertex.init(&ctx.current_vertex_group.arena, la.vec2f(la.normalize(f32, pos.xy.x, @floatFromInt(winrect.size.width)), la.normalize(f32, pos.xy.y, @floatFromInt(winrect.size.height))), color);

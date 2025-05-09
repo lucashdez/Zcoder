@@ -1,3 +1,5 @@
+//!The glyf table is here
+
 const std = @import("std");
 // BASE
 const base = @import("../base/base_types.zig");
@@ -35,6 +37,17 @@ pub const GeneratedGlyph = struct {
     advance: f32,
 };
 
+pub const Bezier = struct {
+    start: []f32,
+    end: []f32,
+    control: []f32,
+    next: ?*Bezier,
+};
+pub const Contour = struct {
+    first: ?*Bezier,
+    last: ?*Bezier,
+};
+
 pub const Glyph = struct {
     arena: Arena,
     number_of_contours: u16,
@@ -48,8 +61,9 @@ pub const Glyph = struct {
     flags: []GlyphFlags,
     x_coords: []i16,
     y_coords: []i16,
+    contours: Contour,
 
-    pub fn generate_glyph(self: *const Glyph, arena: *Arena, subdivision: u32) GeneratedGlyph {
+    pub fn generate_glyph(self: *const Glyph, arena: *Arena, subdivision: u32, masterboxy: f32) GeneratedGlyph {
         // NOTE(lucashdez) SEE THE DIFFS WITH PREVIOUS THING BECAUSE WE DONT SUPPORT COMPOUND YETT
         const count_off_curve: u32 = blk: {
             var count: u32 = 0;
@@ -112,7 +126,7 @@ pub const Glyph = struct {
                     res_index += subdivision;
                     contour_start = false;
                 } else {
-                    std.log.warn("[WARN] something happens with the next_index", .{});
+                    //std.log.warn("[WARN] something happens with the next_index", .{});
                 }
             }
             if (res_index < res.len) {
@@ -136,6 +150,13 @@ pub const Glyph = struct {
         while (res_index < res.len) {
             res[res_index] = res[res_index - 1];
             res_index += 1;
+        }
+        //flip?
+        //const ymin:f32 = @floatFromInt(self.yMin);
+        const ymax: f32 = @floatFromInt(self.yMax);
+        for (0..res.len)  |i| {
+            res[i].y = ymax - res[i].y + (masterboxy - ymax);
+            res[i].y = res[i].y;
         }
         return GeneratedGlyph
         {
@@ -240,6 +261,12 @@ pub fn read(offset: usize, buf: []const u8) Glyph {
         glyph.y_coords[i] = current_y_coord + prev_y_coord;
         prev_y_coord = glyph.y_coords[i];
     }
+
+
+    // ESTO A GENERATE
+    glyph.contours = undefined;
+    //var bezier: *Bezier = glyph.arena.push_item(Bezier);
+
 
     // std.debug.print("(#{s:3})  {s:5} {s:5}\n", .{ "#", "x", "y" });
     // for (0..glyph.x_coords.len) |i| {
