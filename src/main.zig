@@ -97,7 +97,7 @@ pub fn main() !void {
     app.graphics_ctx.vk_appdata.arena = lhmem.make_arena(lhmem.MB(10));
     const thr = try std.Thread.spawn(.{}, load_font, .{ &app, "Envy Code R.ttf" });
 
-    app.graphics_ctx.window = windowing.create_window("algo");
+    app.graphics_ctx.window = windowing.create_window("ZCoder");
     try lhvk.init_vulkan(&app.graphics_ctx);
     var buffer: Buffer = Buffer.create_buffer();
 

@@ -128,6 +128,8 @@ pub const VertexList = struct {
     }
 };
 
+
+// TODO: Here you have to do the binding of the uv and other things in the Font Beziers 
 pub fn get_binding_description() vk.VkVertexInputBindingDescription {
     var description: vk.VkVertexInputBindingDescription = undefined;
     description.binding = 0;
