@@ -149,6 +149,7 @@ pub fn get_attribute_description(arena: *Arena) []vk.VkVertexInputAttributeDescr
     d[1].location = 1;
     d[1].format = vk.VK_FORMAT_R32G32B32A32_SFLOAT;
     d[1].offset = @offsetOf(RawVertex, "color");
+
     return d;
 }
 

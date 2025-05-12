@@ -5,6 +5,10 @@ const u = @import("../lhvk_utils.zig");
 const v = @import("../drawing/vertex.zig");
 const Swapchain = @import("swapchain.zig").Swapchain;
 
+// TODO: Create the posibility of multiple pipelines, and shader objects
+// The need for uv coordinates in the binding and attribute descriptions is
+// essential for this project to continue moving forward. Also, linux pls
+
 fn read_file(arena: *lhmem.Arena, file_name: []const u8) ![]const u8 {
     var file = std.fs.cwd().openFile(file_name, .{}) catch {
         var arena_int = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -93,6 +97,7 @@ pub const Pipeline = struct {
         var vertex_input_info: vk.VkPipelineVertexInputStateCreateInfo = std.mem.zeroes(vk.VkPipelineVertexInputStateCreateInfo);
         vertex_input_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
+        // HEREEE DYNAMIC
         var binding_description = v.get_binding_description();
         const attribute_description = v.get_attribute_description(arena);
         vertex_input_info.vertexBindingDescriptionCount = 1;
@@ -109,8 +114,8 @@ pub const Pipeline = struct {
         var viewport: vk.VkViewport = std.mem.zeroes(vk.VkViewport);
         viewport.x = 0.0;
         viewport.y = 0.0;
-        viewport.width = @as(f32, @floatFromInt(800));
-        viewport.height = @as(f32, @floatFromInt(600));
+        viewport.width = @as(f32, @floatFromInt(swapchain.extent.width));
+        viewport.height = @as(f32, @floatFromInt(swapchain.extent.height));
         viewport.minDepth = 0.0;
         viewport.maxDepth = 1.0;
 
