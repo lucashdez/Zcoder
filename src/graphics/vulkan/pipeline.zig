@@ -97,7 +97,7 @@ pub const Pipeline = struct {
         var vertex_input_info: vk.VkPipelineVertexInputStateCreateInfo = std.mem.zeroes(vk.VkPipelineVertexInputStateCreateInfo);
         vertex_input_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 
-        // HEREEE DYNAMIC
+        // NOTE:(lucashdez) HEREEE DYNAMIC
         var binding_description = v.get_binding_description();
         const attribute_description = v.get_attribute_description(arena);
         vertex_input_info.vertexBindingDescriptionCount = 1;
@@ -105,8 +105,10 @@ pub const Pipeline = struct {
         vertex_input_info.pVertexBindingDescriptions = &binding_description;
         vertex_input_info.pVertexAttributeDescriptions = attribute_description.ptr;
 
-        var input_assembly_create_info: vk.VkPipelineInputAssemblyStateCreateInfo = std.mem.zeroes(vk.VkPipelineInputAssemblyStateCreateInfo);
+        var input_assembly_create_info: vk.VkPipelineInputAssemblyStateCreateInfo =  undefined;
         input_assembly_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        input_assembly_create_info.pNext = null;
+        input_assembly_create_info.flags = 0;
         input_assembly_create_info.topology = p_opt.topology;
         input_assembly_create_info.primitiveRestartEnable = vk.VK_FALSE;
 
