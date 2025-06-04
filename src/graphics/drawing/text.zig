@@ -5,11 +5,21 @@ const GeneratedGlyph = @import("../../font/glyf.zig").GeneratedGlyph;
 // Vulkan
 const lhvk = @import("../lhvk.zig");
 const LhvkGraphicsCtx = lhvk.LhvkGraphicsCtx;
+const vk = @import("../vk_api.zig").vk;
 
 // Vertices
 const vertex = @import("vertex.zig");
 const VertexList = vertex.VertexList;
 const Vertex = vertex.Vertex;
+
+const FontVertex = packed struct 
+{
+    pos: [2]f32,
+    color: [4]f32,
+    uv: [2]f32
+};
+
+
 
 // Primitives
 const primitives = @import("primitives.zig");
@@ -26,6 +36,38 @@ const Arena = lhmem.Arena;
 const Rectu32 = base.Rectu32;
 const Rectf32 = base.Rectf32;
 const TARGET_OS = @import("builtin").target.os.tag;
+
+
+pub fn get_binding_description() vk.VkVertexInputBindingDescription {
+    var description: vk.VkVertexInputBindingDescription = undefined;
+    description.binding = 0;
+    description.stride = @sizeOf(FontVertex);
+    description.inputRate = vk.VK_VERTEX_INPUT_RATE_VERTEX;
+    return description;
+}
+
+pub fn get_attribute_description(arena: *Arena) []vk.VkVertexInputAttributeDescription 
+{
+   var d: []vk.VkVertexInputAttributeDescription = arena.push_array(vk.VkVertexInputAttributeDescription, 3)[0..3];
+
+    d[0].binding = 0;
+    d[0].location = 0;
+    d[0].format = vk.VK_FORMAT_R32G32_SFLOAT;
+    d[0].offset = @offsetOf(FontVertex, "pos");
+
+    d[1].binding = 0;
+    d[1].location = 1;
+    d[1].format = vk.VK_FORMAT_R32G32B32A32_SFLOAT;
+    d[1].offset = @offsetOf(FontVertex, "color");
+
+    d[2].binding = 0;
+    d[2].location = 2;
+    d[2].format = vk.VK_FORMAT_R32G32_SFLOAT;
+    d[2].offset = @offsetOf(FontVertex, "uv");
+
+    return d;
+}
+
 
 pub fn draw_string(app: *Application, arena: *Arena, text: []const u8, color: Color) void {
     //const window_rect = app.graphics_ctx.window.get_size();
