@@ -1,9 +1,14 @@
+const Platform = @This();
+
+
 const std = @import("std");
 const u = @import("lhvk_utils.zig");
 const x = @import("../os/x/xlib.zig");
 const assert = std.debug.assert;
 const e = @import("windowing/events.zig");
 const lhmem = @import("../memory/memory.zig");
+const base = @import("../base/base_types.zig");
+const Rectu32 = base.Rectu32;
 
 // TODO: Add queue and regglobalhanddler handle queue things.
 pub const XlibProps = struct {
@@ -19,6 +24,10 @@ pub const Window = struct {
     pub fn get_events(window: *Window) void {
         _ = window;
     }
+
+    pub fn get_size(window: *Window) Rectu32 {
+        return undefined;
+    } 
 };
 
 pub fn create_window(name: [:0]const u8) Window {
