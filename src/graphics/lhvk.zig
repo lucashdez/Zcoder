@@ -658,7 +658,7 @@ pub fn init_vulkan(ctx: *LhvkGraphicsCtx) !void {
     //try create_swapchain(ctx);
     ctx.vk_app.render_pass = try create_render_pass(ctx.vk_app.device_wrapper.device, ctx.vk_app.lhswapchain.format.format);
     ctx.vk_app.graphics_pipeline = try Pipeline.init(ctx.vk_app.device_wrapper.device, ctx.vk_app.render_pass, ctx.vk_app.lhswapchain, .{ .topology = vk.VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, .frag_path = "src/shaders/frag.spv", .vert_path = "src/shaders/vert.spv" });
-    ctx.vk_app.font_pipeline = try Pipeline.init(ctx.vk_app.device_wrapper.device, ctx.vk_app.render_pass, ctx.vk_app.lhswapchain, .{ .topology = vk.VK_PRIMITIVE_TOPOLOGY_LINE_STRIP, .frag_path = "src/shaders/fontfrag.spv", .vert_path = "src/shaders/fontvert.spv" });
+    ctx.vk_app.font_pipeline = try Pipeline.init_font(ctx.vk_app.device_wrapper.device, ctx.vk_app.render_pass, ctx.vk_app.lhswapchain, .{ .topology = vk.VK_PRIMITIVE_TOPOLOGY_LINE_STRIP, .frag_path = "src/shaders/fontfrag.spv", .vert_path = "src/shaders/fontvert.spv" });
     create_framebuffers(ctx.vk_app.device_wrapper.device, &ctx.vk_app.lhswapchain, ctx.vk_app.render_pass);
     // TODO: Continue refactor
     create_command_pool(ctx);

@@ -12,7 +12,7 @@ const vertex = @import("vertex.zig");
 const VertexList = vertex.VertexList;
 const Vertex = vertex.Vertex;
 
-const FontVertex = packed struct 
+const FontVertex = struct 
 {
     pos: [2]f32,
     color: [4]f32,

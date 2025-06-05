@@ -56,6 +56,14 @@ pub const Pipeline = struct {
         return .{ .arena = arena, .pipeline = pipeline, .layout = pipeline_layout };
     }
 
+    pub fn init_font(device: vk.VkDevice, render_pass: vk.VkRenderPass, swapchain: Swapchain, p_opt: PipelineOptions) !Pipeline {
+        var arena = lhmem.make_arena((1 << 10) * 24);
+        const pipeline_layout = create_pipeline_layout(device);
+        const pipeline = try create_font_pipeline(&arena, device, render_pass, swapchain, pipeline_layout, p_opt);
+        return .{ .arena = arena, .pipeline = pipeline, .layout = pipeline_layout };
+    }
+
+
     fn create_pipeline_layout(device: vk.VkDevice) vk.VkPipelineLayout {
         var pipeline_layout_create_info = std.mem.zeroes(vk.VkPipelineLayoutCreateInfo);
         pipeline_layout_create_info.sType = vk.VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
