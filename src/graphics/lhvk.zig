@@ -1,6 +1,6 @@
 const std = @import("std");
 const vk = @import("vk_api.zig").vk;
-const Window = if (@import("builtin").os.tag == .windows) @import("win32.zig").Window else @import("x.zig").Window;
+const Window = @import("win32.zig").Window;
 const lhmem = @import("../memory/memory.zig");
 const Arena = lhmem.Arena;
 const assert = std.debug.assert;

@@ -8,7 +8,7 @@ const FontAttributes = Font.FontAttributes;
 const lhmem = @import("memory/memory.zig");
 const Arena = lhmem.Arena;
 const lhvk = @import("graphics/lhvk.zig");
-const windowing = if (@import("builtin").os.tag == .windows) @import("graphics/win32.zig") else @import("graphics/x.zig");
+const windowing = @import("graphics/win32.zig");
 const e = @import("graphics/windowing/events.zig");
 const la = @import("lin_alg/la.zig");
 const print = std.debug.print;
@@ -19,68 +19,18 @@ const VertexList = v.VertexList;
 const VertexGroup = v.VertexGroup;
 const base = @import("base/base_types.zig");
 const Rectu32 = base.Rectu32;
+const Platform = @import("platform/platform.zig");
 
 extern fn putenv(string: [*:0]const u8) c_int;
 
-pub const Application = struct {
+pub const Editor = struct {
     graphics_ctx: lhvk.LhvkGraphicsCtx,
     font: FontAttributes,
+    window: Platform.Window,
 };
 
-const Buffer = struct {
-    arena: Arena,
-    cursor_pos: usize,
-    mark_pos: usize,
-    buffer: std.ArrayList(u8),
-    file_name: ?[]const u8,
-    file: ?std.fs.File,
 
-    pub fn create_buffer() Buffer {
-        return Buffer{
-            .arena = lhmem.make_arena((1 << 10) * 24),
-            .cursor_pos = 0,
-            .mark_pos = 0,
-            .buffer = std.ArrayList(u8).init(std.heap.page_allocator),
-            .file_name = null,
-            .file = null,
-        };
-    }
-
-    pub fn open_or_create_file(buffer: *Buffer, path: []const u8) !void {
-        buffer.file = std.fs.cwd().openFile(path, .{ .mode = .read_write, .lock = .none }) catch blk: {
-            break :blk try std.fs.cwd().createFile(path, .{ .read = true });
-        };
-        if (buffer.file) |file| {
-            buffer.file_name = path;
-            buffer.cursor_pos = 0;
-            buffer.mark_pos = buffer.cursor_pos;
-            var buffered = std.io.bufferedReader(file.reader());
-            const metadata = try file.metadata();
-            try buffer.buffer.resize(metadata.size());
-            _ = try buffered.read(buffer.buffer.items);
-        }
-    }
-    pub fn save_file(buf: *Buffer) !void {
-        if (buf.file) |file| {
-            file.close();
-            buf.file = try std.fs.cwd().createFile(buf.file_name.?, .{ .truncate = true });
-            try buf.file.?.writeAll(buf.buffer.items);
-        }
-    }
-};
-
-fn write_char(buf: *Buffer, c: u8) void {
-    buf.buffer.insert(buf.cursor_pos, c) catch {};
-    buf.cursor_pos += 1;
-}
-
-fn handle_key_input(buf: *Buffer, event: e.Event) void {
-    print("CHAR PRESSED: 0x{x}\n", .{event.char});
-    write_char(buf, @as(u8, @intCast(event.char)));
-    print("{s}\n", .{buf.buffer.items});
-}
-
-fn load_font(app: *Application, name: []const u8) !void {
+fn load_font(app: *Editor, name: []const u8) !void {
     app.font = try Font.load_font(name);
 }
 
@@ -92,37 +42,21 @@ pub fn main() !void {
             _ = putenv("VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation:VK_LAYER_KHRONOS_profiles");
         }
     }
-    var app: Application = undefined;
+    var app: Editor = undefined;
     app.graphics_ctx.vk_app.arena = lhmem.make_arena(lhmem.MB(10));
     app.graphics_ctx.vk_appdata.arena = lhmem.make_arena(lhmem.MB(10));
     const thr = try std.Thread.spawn(.{}, load_font, .{ &app, "Envy Code R.ttf" });
 
-    app.graphics_ctx.window = windowing.create_window("ZCoder");
-    try lhvk.init_vulkan(&app.graphics_ctx);
-    var buffer: Buffer = Buffer.create_buffer();
+    app.window = Platform.create_window("name", 600, 400);
 
     var quit: bool = false;
+    var i: usize = 0;
     while (!quit) {
-        var frame_arena: Arena = lhmem.make_arena(lhmem.KB(16));
-        if (try lhvk.prepare_frame(&app.graphics_ctx)) continue;
-        app.graphics_ctx.current_vertex_group = VertexGroup{
-            .first = null,
-            .last = null,
-        };
-        app.graphics_ctx.window.get_events();
-        if (app.graphics_ctx.window.event) |event| {
-            switch (event.t) {
-                .E_QUIT => quit = true,
-                .E_KEY => {
-                    handle_key_input(&buffer, event);
-                },
-                else => {},
-            }
+        var frame_arena: Arena = lhmem.make_arena(lhmem.MB(16));
+        if (i == 10000) {
+            quit = true;
         }
-        app.graphics_ctx.window.event.?.t = .E_NONE;
-        text.draw_string(&app, &frame_arena, "Hello world", draw.Color.create(0xFFFFFFFF));
-        lhvk.begin_command_buffer_rendering(&app.graphics_ctx);
-        try lhvk.end_command_buffer_rendering(&app.graphics_ctx);
+        i += 1;
     }
     thr.join();
 }
