@@ -52,7 +52,8 @@ pub fn main() !void {
     var quit: bool = false;
     var i: usize = 0;
     while (!quit) {
-        var frame_arena: Arena = lhmem.make_arena(lhmem.MB(16));
+        const frame_arena: Arena = lhmem.make_arena(lhmem.MB(16));
+        _ = frame_arena;
         if (i == 10000) {
             quit = true;
         }

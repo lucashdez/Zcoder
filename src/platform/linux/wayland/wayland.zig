@@ -18,6 +18,9 @@ pub const RawWindow = struct {
 };
 
 pub fn create_window(name: []const u8, width: i32, height: i32) RawWindow {
+    _ = name;
+    _ = width;
+    _ = height;
     unreachable;
 }
 
