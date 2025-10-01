@@ -1,12 +1,14 @@
 const std = @import("std");
+const TARGET_OS = @import("builtin").os.tag;
 const vk = @import("vk_api.zig").vk;
-const Window = @import("win32.zig").Window;
+const Window = if (TARGET_OS == .windows) @import("win32.zig").Window else struct {
+    id: i32
+};
 const lhmem = @import("../memory/memory.zig");
 const Arena = lhmem.Arena;
 const assert = std.debug.assert;
 const u = @import("lhvk_utils.zig");
 const la = @import("../lin_alg/la.zig");
-const TARGET_OS = @import("builtin").os.tag;
 const Swapchain = @import("vulkan/swapchain.zig").Swapchain;
 const Pipeline = @import("vulkan/pipeline.zig").Pipeline;
 const v = @import("drawing/vertex.zig");
