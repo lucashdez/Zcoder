@@ -20,20 +20,24 @@ pub const RawWindow = struct
     pub fn
     init(name: []const u8, width: i32, height: i32) RawWindow
     {
-        const class_name: [*:0]const u16 = wideString(name);
-        const hInstance: raw.HINSTANCE = raw.GetModuleHandleW(null);
-        var wc: raw.WNDCLASSW = std.mem.zeroes(raw.WNDCLASSW);
-        wc.lpfnWndProc = customproc;
-        wc.hInstance = hInstance;
-        wc.lpszClassName = class_name;
-        _ = raw.RegisterClassW(&wc);
-        const styles = raw.WINDOW_STYLE {
-            .VISIBLE = 1,
-            .TABSTOP = 1,
-            .GROUP = 1,
-            THICKFRAME = 1,
-        };
+        _ = name;
+        _ = width;
+        _ = height;
+        unreachable;
+//const class_name: [*:0]const u16 = wideString(name);
+//const hInstance: raw.HINSTANCE = raw.GetModuleHandleW(null);
+//var wc: raw.WNDCLASSW = std.mem.zeroes(raw.WNDCLASSW);
+//wc.lpfnWndProc = customproc;
+//wc.hInstance = hInstance;
+//wc.lpszClassName = class_name;
+//_ = raw.RegisterClassW(&wc);
+//const styles = raw.WINDOW_STYLE {
+//    .VISIBLE = 1,
+//    .TABSTOP = 1,
+//    .GROUP = 1,
+//    .THICKFRAME = 1,
+//};
 
-        return RawWindow { .hInstance = null, .hwnd = null};
+//return RawWindow { .hInstance = null, .hwnd = null};
     }
 };

@@ -20,6 +20,6 @@ pub fn main() !void {
 
     const a = std.posix.getenv("ZCODER_DEBUG");
     if (a) |b| {
-        std.log.err("{s}", .{b});
+        std.log.info("DEBUG SET {s}", .{b});
     }
 }

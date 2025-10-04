@@ -1,6 +1,6 @@
 const Platform = @This();
 const OS_TAG = @import("builtin").os.tag;
-const RawWindow = if (OS_TAG == .windows) @import("windows/win32.zig").RawWindow  else @import("linux/wayland/wayland.zig");
+const RawWindow = if (OS_TAG == .windows) @import("windows/win32.zig").RawWindow  else @import("linux/wayland/wayland.zig").RawWindow;
 
 pub const Window = struct
 {
