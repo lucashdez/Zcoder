@@ -23,8 +23,8 @@ pub fn main() !void {
             _ = putenv("VK_INSTANCE_LAYERS=VK_LAYER_KHRONOS_validation:VK_LAYER_KHRONOS_profiles");
         }
     }
-    //const platform = Platform.start_platform_layer(); 
-    //platform.init_window("something", 100, 200);
+    const platform = Platform.start_platform_layer(); 
+    platform.init_window("something", 100, 200);
 
 
     const a = std.posix.getenv("ZCODER_DEBUG");
