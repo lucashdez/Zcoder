@@ -1,16 +1,21 @@
-const Platform = @This();
 const OS_TAG = @import("builtin").os.tag;
-const RawWindow = if (OS_TAG == .windows) @import("windows/win32.zig").RawWindow  else @import("linux/wayland/wayland.zig").RawWindow;
+const pltf = @import("linux/wayland/wayland.zig");
 
-pub const Window = struct
+pub const Platform = struct 
 {
-    handle: i32,
-    raw: RawWindow,
+    init: fn () Platform,
+    init_window: fn (state: *Platform, name: []const u8, width: i32, height: i32) void,
+    destroy: fn (window: *Platform) void,
 };
 
-pub fn
-create_window(name: []const u8, width: i32, height: i32) Window
+pub fn start_platform_layer() 
+Platform 
 {
-    const raw = RawWindow.init(name, width, height);
-    return .{ .handle = 1, .raw = raw };
+    return switch (@import("builtin").os.tag) {
+        .linux => blk: {
+            const wayland = @import("linux/wayland/wayland.zig");
+            break :blk wayland.init();
+        },
+        else => @compileError("Unsupported platform"),
+    };
 }

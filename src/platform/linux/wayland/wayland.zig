@@ -12,12 +12,37 @@ const WlHeader = f_wayland_connection.WlHeader;
 const EventIt = f_events.EventIt;
 const EventDataParser = f_events.EventDataParser;
 
-pub const RawWindow = struct {
-    display: Display,
+const Platform = @import("../../platform.zig").Platform;
 
+
+pub fn init() 
+Platform {
+    return Platform {
+        .init = init_platform, 
+        .init_window = create_window,
+        .destroy = destroy_platform,
+    };
+}
+
+pub fn init_platform(pltf: *Platform) 
+void 
+{
+
+    _ = pltf;
+}
+
+fn destroy_platform(state: *Platform) 
+void {
+    _ = state;
+}
+
+
+pub const WaylandState = struct {
+    display: Display,
 };
 
-pub fn create_window(name: []const u8, width: i32, height: i32) RawWindow {
+pub fn create_window(platform_state: *Platform ,name: []const u8, width: i32, height: i32) void {
+    _ = platform_state;
     _ = name;
     _ = width;
     _ = height;
